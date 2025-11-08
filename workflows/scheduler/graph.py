@@ -68,33 +68,46 @@ def create_scheduler_workflow() -> StateGraph:
     workflow.add_node("agent", scheduling_agent)
 
     # ToolNode with LangChain CalendarToolkit tools
-    # Tools are loaded dynamically to ensure auth is ready
     async def tools_node(state: SchedulerState):
-        """Dynamic tool node that loads Calendar tools."""
+        """Dynamic tool node that loads Calendar tools and injects defaults."""
         _logger.info("SCHEDULER GRAPH: Entering tools node...")
         tools = load_calendar_tools()
-        # Inject default calendar_id into pending tool calls if missing
+        
+        # Inject default calendar_id and time_zone into tool calls if missing
         try:
             import os
             from langchain_core.messages import AIMessage
+            
             default_cal_id = os.getenv("GOOGLE_CALENDAR_CALENDAR_ID") or os.getenv("GOOGLE_CALENDAR_DEFAULT_CALENDAR_ID")
             default_tz = os.getenv("GOOGLE_CALENDAR_TIME_ZONE") or os.getenv("TIME_ZONE")
-            if default_cal_id and state.messages:
+            
+            if state.messages:
                 last = state.messages[-1]
                 if isinstance(last, AIMessage) and getattr(last, "tool_calls", None):
                     for tc in last.tool_calls:
-                        name = tc.get("name") or ""
-                        args = tc.get("args") or {}
-                        if name in {"create_calendar_event", "search_events", "update_calendar_event", "delete_calendar_event", "move_calendar_event"}:
-                            if "calendar_id" not in args:
+                        name = tc.get("name", "")
+                        args = tc.get("args")
+                        
+                        if not isinstance(args, dict):
+                            continue
+                            
+                        # Inject calendar_id for calendar operations
+                        if name in {"create_calendar_event", "search_events", "update_calendar_event", 
+                                   "delete_calendar_event", "move_calendar_event"}:
+                            if default_cal_id and "calendar_id" not in args:
                                 args["calendar_id"] = default_cal_id
                                 tc["args"] = args
-                            if name == "create_calendar_event" and default_tz and "time_zone" not in args:
+                                
+                        # Inject time_zone for event creation
+                        if name == "create_calendar_event":
+                            if default_tz and "time_zone" not in args:
                                 args["time_zone"] = default_tz
                                 tc["args"] = args
-                    _logger.info("SCHEDULER GRAPH: Injected default calendar_id into tool call args")
+                                
+                    _logger.info("SCHEDULER GRAPH: Injected default parameters into tool calls")
         except Exception as e:
-            _logger.debug(f"SCHEDULER GRAPH: calendar_id injection skipped: {e}")
+            _logger.debug(f"SCHEDULER GRAPH: Parameter injection skipped: {e}")
+            
         tool_executor = ToolNode(tools)
         _logger.info("SCHEDULER GRAPH: Executing tools...")
         result = await tool_executor.ainvoke(state)

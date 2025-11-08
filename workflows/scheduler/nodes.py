@@ -1,8 +1,6 @@
 """Nodes for the scheduler workflow."""
 import os
 import re
-import base64
-from urllib.parse import urlparse, parse_qs
 import json
 import logging
 from typing import Dict, Literal, Optional
@@ -160,17 +158,10 @@ async def finalize_scheduling(
     _logger.info("SCHEDULER: Finalizing scheduling process...")
     _logger.info(f"SCHEDULER: Total messages in history: {len(state.messages)}")
 
-    # Log all messages for debugging
-    for i, msg in enumerate(state.messages):
-        msg_type = type(msg).__name__
-        has_tool_calls = hasattr(msg, 'tool_calls') and msg.tool_calls
-        content_preview = str(msg.content)[:200] if hasattr(msg, 'content') else 'N/A'
-        _logger.debug(f"SCHEDULER: Message {i}: {msg_type}, has_tool_calls={has_tool_calls}, content={content_preview}...")
-
     cfg = Configuration.from_runnable_config(config)
     llm = get_text_llm(cfg)
 
-    # Helpers
+    # Helper to strip code fences from JSON
     def _strip_code_fences(s: str) -> str:
         if '```json' in s:
             try:
@@ -184,32 +175,8 @@ async def finalize_scheduling(
                 return s
         return s
 
-    def _extract_event_id_from_link(link: str) -> str | None:
-        try:
-            parsed = urlparse(link)
-            qs = parse_qs(parsed.query)
-            eid_vals = qs.get("eid")
-            if not eid_vals:
-                return None
-            eid = eid_vals[0]
-            # Try to decode Google Calendar eid (urlsafe base64 of "<eventId> <calendarId>")
-            try:
-                # Pad to multiple of 4
-                padded = eid + ("=" * (-len(eid) % 4))
-                decoded = base64.urlsafe_b64decode(padded.encode("utf-8")).decode("utf-8", errors="ignore")
-                # Expect "eventId calendarId"; take first token
-                parts = decoded.split()
-                if parts:
-                    return parts[0]
-            except Exception:
-                # Fall back to returning the raw eid if decoding fails
-                return eid
-            return eid
-        except Exception:
-            return None
-
+    # Helper to parse tool content
     def _parse_tool_content(content: str) -> dict:
-        # Try strict JSON
         s = _strip_code_fences(content)
         try:
             data = json.loads(s)
@@ -217,26 +184,23 @@ async def finalize_scheduling(
                 return data
         except Exception:
             pass
-        # Try to extract minimal fields via regex heuristics
+        
+        # If JSON parsing fails, try to extract the event link from plain text
         result = {}
-        m = re.search(r"\b(id|event_id)\b\W*[:=]\W*([A-Za-z0-9_\-]+)", content)
-        if m:
-            result['event_id'] = m.group(2)
-        m = re.search(r"https?://\S+calendar\S+", content)
-        if m:
-            link = m.group(0)
-            result['calendar_link'] = link
-            # Try to derive event_id from eid param in the link
-            ev_id = _extract_event_id_from_link(link)
-            if ev_id and 'event_id' not in result:
-                result['event_id'] = ev_id
-        m = re.search(r"hangoutLink\W*[:=]\W*(https?://\S+)", content)
-        if m:
-            result['meeting_link'] = m.group(1)
-        # Not reliable, but return whatever was found
+        if "Event created:" in content:
+            import re
+            link_match = re.search(r'https://www\.google\.com/calendar/event\?eid=[^\s]+', content)
+            if link_match:
+                result['htmlLink'] = link_match.group(0)
         return result
 
-    # Track last create_calendar_event call args to fill gaps
+    # Helper to normalize time fields
+    def _normalize_time(x):
+        if isinstance(x, dict):
+            return x.get('dateTime') or x.get('date') or json.dumps(x)
+        return x
+
+    # Look for create_calendar_event tool call and response
     create_args = None
     event_data = None
     event_created = False
@@ -245,13 +209,12 @@ async def finalize_scheduling(
         # Capture tool call args
         if isinstance(msg, AIMessage) and getattr(msg, 'tool_calls', None):
             for tc in msg.tool_calls:
-                if 'create_calendar_event' in (tc.get('name') or ''):
+                if tc.get('name') == 'create_calendar_event':
                     create_args = tc.get('args') or create_args
         # Capture tool response
         if isinstance(msg, ToolMessage) and msg.name == 'create_calendar_event':
             content = msg.content if isinstance(msg.content, str) else str(msg.content)
             parsed = _parse_tool_content(content)
-            # Consider it created if we got any dict back (even minimal)
             if parsed:
                 event_data = parsed
                 event_created = True
@@ -260,20 +223,16 @@ async def finalize_scheduling(
     if event_created:
         # Successfully created event - extract details
         try:
-            # Prefer parsed tool data; fall back to tool call args
             ed = event_data or {}
             args = create_args or {}
-            # Normalize fields
-            event_id = ed.get('event_id') or ed.get('id') or 'unknown'
-            title = ed.get('title') or ed.get('summary') or args.get('summary') or state.meeting_name
-            # Start/end may be dicts or strings
-            def _normalize_time(x):
-                if isinstance(x, dict):
-                    return x.get('dateTime') or x.get('date') or json.dumps(x)
-                return x
+
+            # Extract fields (CalendarToolkit returns id, summary, start, end, attendees, location, htmlLink, hangoutLink)
+            event_id = ed.get('id') or 'unknown'
+            title = ed.get('summary') or args.get('summary') or state.meeting_name
             start_time = _normalize_time(ed.get('start')) or _normalize_time(args.get('start')) or 'unknown'
             end_time = _normalize_time(ed.get('end')) or _normalize_time(args.get('end')) or 'unknown'
-            # Attendees may be list[dict] or list[str]
+            
+            # Attendees may be list[dict] with 'email' key
             attendees = ed.get('attendees') or args.get('attendees') or state.attendee_emails
             if isinstance(attendees, list):
                 attendees_emails = []
@@ -283,9 +242,6 @@ async def finalize_scheduling(
                     elif isinstance(a, dict) and a.get('email'):
                         attendees_emails.append(a['email'])
                 attendees = attendees_emails
-            location = ed.get('location') or args.get('location') or state.location
-            meeting_link = ed.get('meeting_link') or ed.get('hangoutLink')
-            calendar_link = ed.get('calendar_link') or ed.get('htmlLink')
 
             scheduled_event = ScheduledEvent(
                 event_id=event_id,
@@ -295,9 +251,9 @@ async def finalize_scheduling(
                 end_time=end_time,
                 duration_minutes=state.duration_minutes,
                 attendees=attendees or [],
-                location=location,
-                meeting_link=meeting_link,
-                calendar_link=calendar_link,
+                location=ed.get('location') or args.get('location') or state.location,
+                meeting_link=ed.get('hangoutLink'),
+                calendar_link=ed.get('htmlLink'),
             )
 
             reasoning = f"Successfully scheduled '{state.meeting_name}' for {scheduled_event.start_time}"
@@ -309,17 +265,15 @@ async def finalize_scheduling(
                 "reasoning": reasoning,
             }
         except Exception as e:
-            # Fallback with partial data
+            _logger.error(f"SCHEDULER: Failed to extract event details: {e}", exc_info=True)
             return {
                 "scheduled_event": None,
                 "reasoning": f"Event may have been created but details extraction failed: {str(e)}",
             }
     else:
         # Failed to create event - analyze why
-        # Use LLM to generate helpful failure message
         failure_prompt = HumanMessage(content=prompts.FINALIZE_FAILURE_PROMPT)
         messages = state.messages + [failure_prompt]
-
         response = await llm.ainvoke(messages)
 
         return {

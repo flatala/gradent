@@ -75,12 +75,6 @@ class SchedulerState(BaseModel):
         description="Authentication message/instructions if auth is needed"
     )
 
-    # Intermediate data
-    available_slots: Optional[List[dict]] = Field(
-        default=None,
-        description="Free time slots found by find_free_time_slots tool"
-    )
-
     # Output
     scheduled_event: Optional[ScheduledEvent] = Field(
         default=None,

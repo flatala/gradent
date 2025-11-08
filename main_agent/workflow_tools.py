@@ -218,6 +218,7 @@ async def run_scheduler_workflow(
             "status": "success",
             "meeting_name": event.title if hasattr(event, 'title') else meeting_name,
             "event_id": event.event_id if hasattr(event, 'event_id') else None,
+            "calendar_link": event.calendar_link if hasattr(event, 'calendar_link') else None,
             "meeting_link": event.meeting_link if hasattr(event, 'meeting_link') else None,
             "scheduled_time": event.start_time if hasattr(event, 'start_time') else None,
             "duration_minutes": event.duration_minutes if hasattr(event, 'duration_minutes') else duration_minutes,
