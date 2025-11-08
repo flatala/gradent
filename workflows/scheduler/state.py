@@ -1,5 +1,6 @@
 """State definition for the scheduler workflow."""
 from typing import List, Optional, Annotated
+from datetime import datetime
 
 from pydantic import BaseModel, Field
 from langgraph.graph import add_messages
@@ -53,10 +54,26 @@ class SchedulerState(BaseModel):
         description="Physical location or 'Google Meet' for virtual meetings"
     )
 
-    # Input: Scheduling constraints
-    constraints: Optional[str] = Field(
+    # Input: Scheduling time preferences (structured)
+    preferred_start: Optional[str] = Field(
         default=None,
-        description="Time preferences or scheduling constraints (e.g., 'mornings only', 'after 2pm')"
+        description="Preferred start time in ISO 8601 format (e.g., '2025-01-15T14:00:00')"
+    )
+    preferred_end: Optional[str] = Field(
+        default=None,
+        description="Preferred end time in ISO 8601 format (e.g., '2025-01-15T15:00:00')"
+    )
+    date_range_start: Optional[str] = Field(
+        default=None,
+        description="Start of date range to search for availability (ISO 8601 date, e.g., '2025-01-15')"
+    )
+    date_range_end: Optional[str] = Field(
+        default=None,
+        description="End of date range to search for availability (ISO 8601 date, e.g., '2025-01-20')"
+    )
+    time_constraints: Optional[str] = Field(
+        default=None,
+        description="Additional time constraints (e.g., 'mornings only', 'avoid Mondays', 'working hours only')"
     )
 
     # Message history (append-only merge using LangGraph's add_messages reducer)

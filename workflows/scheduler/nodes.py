@@ -54,11 +54,15 @@ async def initialize_scheduler(
     # Format attendee list for prompt
     attendees_str = ", ".join(state.attendee_emails) if state.attendee_emails else "None (solo event)"
 
-    # Format constraints
-    constraints_str = state.constraints if state.constraints else "None specified"
-
     # Format location
     location_str = state.location if state.location else "Not specified"
+
+    # Format time preferences
+    preferred_start_str = state.preferred_start if state.preferred_start else "Not specified"
+    preferred_end_str = state.preferred_end if state.preferred_end else "Not specified"
+    date_range_start_str = state.date_range_start if state.date_range_start else "Not specified"
+    date_range_end_str = state.date_range_end if state.date_range_end else "Not specified"
+    time_constraints_str = state.time_constraints if state.time_constraints else "None"
 
     # Create initial messages
     messages = [
@@ -71,7 +75,11 @@ async def initialize_scheduler(
                 duration_minutes=state.duration_minutes,
                 attendee_emails=attendees_str,
                 location=location_str,
-                constraints=constraints_str,
+                preferred_start=preferred_start_str,
+                preferred_end=preferred_end_str,
+                date_range_start=date_range_start_str,
+                date_range_end=date_range_end_str,
+                time_constraints=time_constraints_str,
             )
         ),
     ]
@@ -110,27 +118,54 @@ async def initialize_scheduler(
 async def scheduling_agent(
     state: SchedulerState, *, config: Optional[RunnableConfig] = None
 ) -> Dict:
-    """Core agent node that autonomously schedules events using Google Calendar tools.
+    """Core agent node that autonomously schedules events using fixed calendar operations.
 
     This node:
     - Uses the orchestrator LLM for reasoning
-    - Has access to LangChain's CalendarToolkit tools
-    - Can loop multiple times, calling tools as needed
+    - Has access to 4 fixed operations: check_availability, schedule_meeting, cancel_meeting, get_upcoming_meetings
+    - Can loop multiple times, calling operations as needed
     - Decides when scheduling is complete or impossible
     """
-    from .tools import load_calendar_tools
+    from .tools import get_scheduler_tools, check_availability, schedule_meeting, cancel_meeting, get_upcoming_meetings
+    from langchain_core.tools import StructuredTool
 
-    _logger.info("SCHEDULER: Agent node - loading tools...")
+    _logger.info("SCHEDULER: Agent node - preparing fixed operations...")
     cfg = Configuration.from_runnable_config(config)
     llm = get_orchestrator_llm(cfg)
 
-    # Load Google Calendar tools from LangChain toolkit
+    # Create LangChain tools from our fixed operations
     try:
-        tools = load_calendar_tools()
-        _logger.info(f"SCHEDULER: Loaded {len(tools)} calendar tools: {[t.name for t in tools]}")
+        tools = [
+            StructuredTool.from_function(
+                func=check_availability,
+                name="check_availability",
+                description="Check calendar availability for a specific time range. Returns existing events and indicates if the time slot is free. Use ISO 8601 format for times.",
+            ),
+            StructuredTool.from_function(
+                func=schedule_meeting,
+                name="schedule_meeting",
+                description="Create a new calendar event/meeting with title, time, attendees, and location. Use this after confirming time slot is available.",
+            ),
+            StructuredTool.from_function(
+                func=cancel_meeting,
+                name="cancel_meeting",
+                description="Cancel/delete an existing calendar event by its event ID. Sends cancellation notifications to attendees.",
+            ),
+            StructuredTool.from_function(
+                func=get_upcoming_meetings,
+                name="get_upcoming_meetings",
+                description="Retrieve upcoming meetings/events from the calendar for the next N days. Useful for viewing schedule.",
+            ),
+        ]
+        _logger.info(f"SCHEDULER: Prepared {len(tools)} fixed operations: {[t.name for t in tools]}")
     except Exception as e:
-        _logger.error(f"SCHEDULER: Failed to load calendar tools: {e}")
-        raise
+        _logger.error(f"SCHEDULER: Failed to prepare operations: {e}", exc_info=True)
+        # Return error message instead of crashing
+        return {
+            "messages": [
+                AIMessage(content=f"I encountered an error preparing calendar operations: {str(e)}. Please check authentication and configuration.")
+            ]
+        }
 
     llm_with_tools = llm.bind_tools(tools)
 
@@ -140,9 +175,9 @@ async def scheduling_agent(
 
     # Log what the agent decided to do
     if hasattr(response, 'tool_calls') and response.tool_calls:
-        _logger.info(f"SCHEDULER: Agent decided to call {len(response.tool_calls)} tool(s): {[tc.get('name') for tc in response.tool_calls]}")
+        _logger.info(f"SCHEDULER: Agent decided to call {len(response.tool_calls)} operation(s): {[tc.get('name') for tc in response.tool_calls]}")
     else:
-        _logger.info("SCHEDULER: Agent did not call any tools")
+        _logger.info("SCHEDULER: Agent did not call any operations")
 
     return {"messages": [response]}
 
@@ -204,7 +239,7 @@ async def finalize_scheduling(
             return x.get('dateTime') or x.get('date') or json.dumps(x)
         return x
 
-    # Look for create_calendar_event tool call and response
+    # Look for schedule_meeting tool call and response
     create_args = None
     event_data = None
     event_created = False
@@ -213,10 +248,10 @@ async def finalize_scheduling(
         # Capture tool call args
         if isinstance(msg, AIMessage) and getattr(msg, 'tool_calls', None):
             for tc in msg.tool_calls:
-                if tc.get('name') == 'create_calendar_event':
+                if tc.get('name') == 'schedule_meeting':
                     create_args = tc.get('args') or create_args
         # Capture tool response
-        if isinstance(msg, ToolMessage) and msg.name == 'create_calendar_event':
+        if isinstance(msg, ToolMessage) and msg.name == 'schedule_meeting':
             content = msg.content if isinstance(msg.content, str) else str(msg.content)
             parsed = _parse_tool_content(content)
             if parsed:
@@ -230,34 +265,35 @@ async def finalize_scheduling(
             ed = event_data or {}
             args = create_args or {}
 
-            # Extract fields (CalendarToolkit returns id, summary, start, end, attendees, location, htmlLink, hangoutLink)
-            event_id = ed.get('id') or 'unknown'
-            title = ed.get('summary') or args.get('summary') or state.meeting_name
-            start_time = _normalize_time(ed.get('start')) or _normalize_time(args.get('start')) or 'unknown'
-            end_time = _normalize_time(ed.get('end')) or _normalize_time(args.get('end')) or 'unknown'
-            
-            # Attendees may be list[dict] with 'email' key
-            attendees = ed.get('attendees') or args.get('attendees') or state.attendee_emails
-            if isinstance(attendees, list):
-                attendees_emails = []
-                for a in attendees:
-                    if isinstance(a, str):
-                        attendees_emails.append(a)
-                    elif isinstance(a, dict) and a.get('email'):
-                        attendees_emails.append(a['email'])
-                attendees = attendees_emails
+            # Check if the operation was successful
+            if not ed.get('success', True):
+                # Operation failed
+                return {
+                    "scheduled_event": None,
+                    "reasoning": ed.get('message', 'Failed to create event'),
+                }
+
+            # Extract fields from our fixed operation response
+            # Our schedule_meeting returns: event_id, title, start, end, attendees, location, meeting_link, calendar_link
+            event_id = ed.get('event_id') or 'unknown'
+            title = ed.get('title') or args.get('title') or state.meeting_name
+            start_time = ed.get('start') or args.get('start_time') or 'unknown'
+            end_time = ed.get('end') or args.get('end_time') or 'unknown'
+
+            # Attendees from our response are already email strings
+            attendees = ed.get('attendees') or args.get('attendee_emails') or state.attendee_emails or []
 
             scheduled_event = ScheduledEvent(
                 event_id=event_id,
                 title=title,
-                description=ed.get('description') or state.event_description,
+                description=args.get('description') or state.event_description,
                 start_time=start_time,
                 end_time=end_time,
                 duration_minutes=state.duration_minutes,
-                attendees=attendees or [],
+                attendees=attendees,
                 location=ed.get('location') or args.get('location') or state.location,
-                meeting_link=ed.get('hangoutLink'),
-                calendar_link=ed.get('htmlLink'),
+                meeting_link=ed.get('meeting_link'),
+                calendar_link=ed.get('calendar_link'),
             )
 
             reasoning = f"Successfully scheduled '{state.meeting_name}' for {scheduled_event.start_time}"
@@ -312,11 +348,11 @@ def route_scheduler(
     if isinstance(last_message, AIMessage) and last_message.tool_calls:
         return "tools"
 
-    # Check if create_calendar_event was called in recent messages
-    for msg in reversed(messages[-5:]):  # Check last 5 messages
+    # Check if schedule_meeting was called in any message
+    for msg in reversed(messages):
         if hasattr(msg, 'tool_calls') and msg.tool_calls:
             for tool_call in msg.tool_calls:
-                if 'create_calendar_event' in tool_call.get('name', ''):
+                if tool_call.get('name') == 'schedule_meeting':
                     # Event was created, finalize
                     return "finalize"
 

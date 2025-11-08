@@ -11,7 +11,7 @@ from .nodes import (
     finalize_scheduling,
     route_scheduler,
 )
-from .tools import load_calendar_tools
+from .tools import get_scheduler_tools, check_availability, schedule_meeting, cancel_meeting, get_upcoming_meetings
 
 _logger = logging.getLogger("chat")
 
@@ -23,23 +23,23 @@ def create_scheduler_workflow() -> StateGraph:
     1. Checks Google Calendar authentication
     2. Initializes with meeting requirements
     3. Agent analyzes requirements and makes scheduling decisions
-    4. Agent can loop through tools (find_free_time_slots, create_calendar_event, etc.)
+    4. Agent can use 4 fixed operations: check_availability, schedule_meeting, cancel_meeting, get_upcoming_meetings
     5. When scheduling is complete or impossible, finalizes and returns result
 
     Flow:
     ```
     START
       ↓
-    [check_auth] - Verify Google Calendar OAuth
+    [check_auth] - Verify Google Calendar authentication
       ↓
-    authenticated? ─NO→ [END] (return auth required message)
+    authenticated? ─NO→ [finalize] (return auth required message) → END
       ↓YES
     [initialize] - Parse meeting details and set up context
       ↓
-    [agent] - Autonomous scheduling agent with Google Calendar tools
+    [agent] - Autonomous scheduling agent with 4 fixed operations
       ↓
     [conditional routing]
-      ├→ [tools] - Execute Google Calendar API calls
+      ├→ [tools] - Execute calendar operations (check_availability, schedule_meeting, etc.)
       │    ↓
       │  [agent] - Loop back for next decision
       │
@@ -52,10 +52,10 @@ def create_scheduler_workflow() -> StateGraph:
           END (via finalize node)
     ```
 
-    The agent can loop indefinitely, calling tools as needed, until it either:
+    The agent can loop indefinitely, calling operations as needed, until it either:
     - Successfully creates an event (routes to "finalize")
     - Determines scheduling is impossible (routes to "failed" → "finalize")
-    - Needs authentication (routes to "need_auth" → END)
+    - Needs authentication (routes to "finalize" → END)
 
     Returns:
         Compiled scheduler workflow graph
@@ -67,54 +67,35 @@ def create_scheduler_workflow() -> StateGraph:
     workflow.add_node("initialize", initialize_scheduler)
     workflow.add_node("agent", scheduling_agent)
 
-    # ToolNode with LangChain CalendarToolkit tools
-    async def tools_node(state: SchedulerState):
-        """Dynamic tool node that loads Calendar tools and injects defaults."""
-        _logger.info("SCHEDULER GRAPH: Entering tools node...")
-        tools = load_calendar_tools()
-        
-        # Inject default calendar_id and time_zone into tool calls if missing
-        try:
-            import os
-            from langchain_core.messages import AIMessage
-            
-            default_cal_id = os.getenv("GOOGLE_CALENDAR_CALENDAR_ID") or os.getenv("GOOGLE_CALENDAR_DEFAULT_CALENDAR_ID")
-            default_tz = os.getenv("GOOGLE_CALENDAR_TIME_ZONE") or os.getenv("TIME_ZONE")
-            
-            if state.messages:
-                last = state.messages[-1]
-                if isinstance(last, AIMessage) and getattr(last, "tool_calls", None):
-                    for tc in last.tool_calls:
-                        name = tc.get("name", "")
-                        args = tc.get("args")
-                        
-                        if not isinstance(args, dict):
-                            continue
-                            
-                        # Inject calendar_id for calendar operations
-                        if name in {"create_calendar_event", "search_events", "update_calendar_event", 
-                                   "delete_calendar_event", "move_calendar_event"}:
-                            if default_cal_id and "calendar_id" not in args:
-                                args["calendar_id"] = default_cal_id
-                                tc["args"] = args
-                                
-                        # Inject time_zone for event creation
-                        if name == "create_calendar_event":
-                            if default_tz and "time_zone" not in args:
-                                args["time_zone"] = default_tz
-                                tc["args"] = args
-                                
-                    _logger.info("SCHEDULER GRAPH: Injected default parameters into tool calls")
-        except Exception as e:
-            _logger.debug(f"SCHEDULER GRAPH: Parameter injection skipped: {e}")
-            
-        tool_executor = ToolNode(tools)
-        _logger.info("SCHEDULER GRAPH: Executing tools...")
-        result = await tool_executor.ainvoke(state)
-        _logger.info("SCHEDULER GRAPH: Tools executed successfully")
-        return result
+    # ToolNode with fixed scheduler operations
+    # No need for parameter injection - defaults are handled inside the operations
+    from langchain_core.tools import StructuredTool
 
-    workflow.add_node("tools", tools_node)
+    tools = [
+        StructuredTool.from_function(
+            func=check_availability,
+            name="check_availability",
+            description="Check calendar availability for a specific time range. Returns existing events and indicates if the time slot is free.",
+        ),
+        StructuredTool.from_function(
+            func=schedule_meeting,
+            name="schedule_meeting",
+            description="Create a new calendar event/meeting with title, time, attendees, and location. Use this after confirming time slot is available.",
+        ),
+        StructuredTool.from_function(
+            func=cancel_meeting,
+            name="cancel_meeting",
+            description="Cancel/delete an existing calendar event by its event ID. Sends cancellation notifications to attendees.",
+        ),
+        StructuredTool.from_function(
+            func=get_upcoming_meetings,
+            name="get_upcoming_meetings",
+            description="Retrieve upcoming meetings/events from the calendar for the next N days. Useful for viewing schedule.",
+        ),
+    ]
+
+    tool_executor = ToolNode(tools)
+    workflow.add_node("tools", tool_executor)
 
     workflow.add_node("finalize", finalize_scheduling)
 
