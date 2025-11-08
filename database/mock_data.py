@@ -23,7 +23,7 @@ def create_mock_user() -> int:
         db.add(user)
         db.flush()
         user_id = user.id
-        print(f"✓ Created user: {user.name} (ID: {user_id})")
+        print(f"[OK] Created user: {user.name} (ID: {user_id})")
         return user_id
 
 
@@ -56,7 +56,7 @@ def create_mock_courses(user_id: int) -> List[int]:
         db.add_all(courses)
         db.flush()
         course_ids = [c.id for c in courses]
-        print(f"✓ Created {len(courses)} courses")
+        print(f"[OK] Created {len(courses)} courses")
         return course_ids
 
 
@@ -116,7 +116,7 @@ def create_mock_assignments(course_ids: List[int]) -> List[int]:
         db.add_all(assignments)
         db.flush()
         assignment_ids = [a.id for a in assignments]
-        print(f"✓ Created {len(assignments)} assignments")
+        print(f"[OK] Created {len(assignments)} assignments")
         return assignment_ids
 
 
@@ -229,7 +229,7 @@ def create_mock_assessments(assignment_ids: List[int]) -> None:
         
         db.add_all(assessments)
         db.flush()
-        print(f"✓ Created {len(assessments)} assignment assessments")
+        print(f"[OK] Created {len(assessments)} assignment assessments")
 
 
 def populate_mock_data() -> None:
@@ -248,7 +248,7 @@ def populate_mock_data() -> None:
     create_mock_assessments(assignment_ids)
     
     print("\n" + "=" * 60)
-    print("✓ Mock data population complete!")
+    print("[OK] Mock data population complete!")
     print("=" * 60)
     print(f"\nDatabase location: {get_db_session}")
     print("\nYou can now query the database to verify the data.")
@@ -259,9 +259,9 @@ def clear_all_data() -> None:
     from .models import Base
     from .connection import engine
     
-    print("\n⚠️  Dropping all tables...")
+    print("\n[WARN]  Dropping all tables...")
     Base.metadata.drop_all(bind=engine)
-    print("✓ All tables dropped")
+    print("[OK] All tables dropped")
     
     print("Recreating tables...")
     init_db()

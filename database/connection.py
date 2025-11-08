@@ -35,7 +35,7 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 def init_db() -> None:
     """Initialize the database, creating all tables."""
     Base.metadata.create_all(bind=engine)
-    print(f"✓ Database initialized at: {DB_PATH}")
+    print(f"[OK] Database initialized at: {DB_PATH}")
 
 
 @contextmanager
