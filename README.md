@@ -1,264 +1,169 @@
-# Gradent - AI Exam Generator
+# Gradent Study Assistant
 
-An AI-powered exam generation system with a modern web interface. Upload PDFs, describe your requirements, and get professionally formatted exams in seconds.
+A multi-agent study coach built on LangGraph + LangChain that connects assignment intelligence, scheduling, progress logging, and proactive nudges in one orchestrated system. The project was developed for a hackathon scenario where Brightspace/LMS data, calendars, and vector-DB resources are ingested and kept fresh by a context updater.
 
-## 🌟 Features
+## Highlights
 
-- **📄 PDF Processing**: Upload lecture notes, textbooks, or any educational PDFs
-- **🤖 AI-Powered**: Uses advanced LLMs (Gemini) via OpenRouter
-- **🎨 Modern UI**: Beautiful React interface with drag-and-drop uploads
-- **⚡ Real-time Generation**: Streaming responses for immediate feedback
-- **📝 LaTeX Support**: Renders mathematical formulas beautifully
-- **💾 Export Options**: Download as Markdown or copy to clipboard
-
-## 🚀 Quick Start
-
-### Installation
-
-```bash
-# 1. Install backend
-poetry install
-
-# 2. Install frontend
-cd frontend && npm install && cd ..
-
-# 3. Install Next.js API
-cd QuestGen-AI-Agent/code && npm install && cd ../..
-
-# 4. Setup environment
-cp .env.example .env
-# Add your OPENROUTER_API_KEY to .env
-```
-
-### Run Application
-
-```bash
-# Easy way (one command):
-./start.sh
-
-# Or manually (3 terminals):
-# Terminal 1: cd QuestGen-AI-Agent/code && npm run dev
-# Terminal 2: python -m app.main
-# Terminal 3: cd frontend && npm run dev
-```
-
-### Access
-- **Web UI**: http://localhost:5173
-- **API Docs**: http://localhost:8000/docs
-
-**Full guide:** [QUICKSTART.md](QUICKSTART.md)
-
-## 📖 Documentation
-
-- **[QUICKSTART.md](QUICKSTART.md)** - Installation and setup
-- **[FRONTEND_BACKEND_GUIDE.md](FRONTEND_BACKEND_GUIDE.md)** - Architecture explained
-- **[ARCHITECTURE.md](ARCHITECTURE.md)** - Visual diagrams
-- **[workflows/exam_api/README.md](workflows/exam_api/README.md)** - Workflow details
-
-## 🏗️ Architecture
-
-```bash
-cp .env.example .env
-```
-
-Edit `.env` and add your OpenAI API key:
+- **Orchestrator agent** (LangChain ReAct) that calls specialized LangGraph workflows as tools.
+- **Assignment analysis** workflow that estimates effort, difficulty, risk, milestones, and prerequisites.
+- **Scheduler** workflow that coordinates meeting/study blocks with constraints and attendee availability.
+- **Progress tracking** workflow that logs study history via natural-language conversations.
+- **Suggestions** workflow that synthesizes assignments, study history, calendar context, and resources into actionable reminders.
+- **Notification worker** that pushes due suggestions to Discord (and is extensible to other channels).
+- **SQLite + SQLAlchemy** relational model covering users, courses, assignments, user-specific progress, study history, and suggestions.
+- **Vector store integration** (Chroma) seeded with course resources for retrieval-augmented suggestions.
 
 ```
-OPENAI_API_KEY=sk-...
+                         ┌──────────────────────────────────────┐
+                         │            Main Agent                │
+                         │  (LangChain ReAct + tool routing)    │
+                         └──────────────┬───────────────────────┘
+                                        │
+        ┌───────────────────────────────┼───────────────────────────────┐
+        │                               │                               │
+┌───────▼────────┐             ┌────────▼────────┐             ┌────────┴────────┐
+│Assignment      │             │Scheduler        │             │Suggestions      │
+│Assessment      │             │Workflow         │             │Workflow         │
+│(LangGraph)     │             │(LangGraph)      │             │(LangGraph)      │
+└───────▲────────┘             └────────▲────────┘             └────────▲────────┘
+        │                               │                               │
+        │                  ┌────────────┴──────────────┐                │
+        │                  │Progress Tracking Workflow │                │
+        │                  │(LangGraph)                │                │
+        │                  └────────────▲──────────────┘                │
+        │                               │                               │
+        │                    ┌──────────┴───────────┐                   │
+        │                    │   SQLite Database    │◄──────────────────┘
+        │                    │ assignments, users,  │
+        │                    │ user_assignments,    │
+        │                    │ study_history, ...   │
+        │                    └──────────┬───────────┘
+        │                               │
+        └───────────────► Vector DB (Chroma) ◄───────────────┐
+                                        │                    │
+                              Discord Dispatcher      Context Updater
 ```
 
-### 4. Configure Models (Optional)
+## Repository Layout (trimmed)
 
-Edit `model_config.json` to change the models:
-
-```json
-{
-  "orchestrator_model": "gpt-4o",
-  "text_model": "gpt-4o-mini"
-}
+```
+gradent/
+├── main.py                         # CLI chat entrypoint
+├── main_agent/
+│   ├── agent.py                    # ReAct agent setup
+│   └── workflow_tools.py           # Tool wrappers for each workflow
+├── workflows/
+│   ├── assignment_assessment/      # Assignment analysis LangGraph
+│   ├── scheduler/                  # Calendar-aware scheduling LangGraph
+│   ├── progress_tracking/          # Study logging LangGraph
+│   └── suggestions/                # Proactive suggestions LangGraph
+├── database/
+│   ├── connection.py               # SQLAlchemy session helpers
+│   ├── models.py                   # ORM models (users, assignments, etc.)
+│   └── mock_data.py                # Mock dataset + helpers
+├── notifications/
+│   ├── dispatcher.py               # Async worker that delivers due suggestions
+│   └── discord.py                  # Discord webhook client
+├── setup_mock_data.py              # Clears + seeds the DB with sample data
+├── setup_mock_suggestions.py       # Inserts demo suggestions
+├── setup_vector_db.py              # Seeds Chroma with course resources
+└── workflows/suggestions/README.md # Additional workflow documentation
 ```
 
-## Usage
+## Data Model at a Glance
 
-### Run the Interactive Chat
+Key tables from `database/models.py`:
 
-```bash
-poetry run python main.py
-```
+- `users`, `courses`, `assignments`: LMS-sourced metadata.
+- `user_assignments`: per-student status, estimated hours, hours_worked, notes.
+- `assignment_assessments`: AI-generated effort/difficulty versions.
+- `study_history`: granular logs of study sessions (minutes, focus, quality, notes).
+- `study_blocks`: planned sessions (scheduler output).
+- `suggestions`: proactive nudges ready for notification channels.
 
-Or if using pip:
+SQLite lives at `data/study_assistant.db` (created on demand).
 
-```bash
-python main.py
-```
+## Getting Started
 
-### Example Interactions
-
-**Planning:**
-```
-You: Help me plan a social media marketing campaign for a new product launch
-Assistant: [Invokes planning workflow, may search web and ask questions]
-```
-
-**Data Processing:**
-```
-You: Analyze this customer feedback data: {"reviews": [...], "ratings": [...]}
-Assistant: [Invokes data processing workflow to extract insights]
-```
-
-**Regular Chat:**
-```
-You: What's the difference between LangChain and LangGraph?
-Assistant: [Responds conversationally without invoking workflows]
-```
-
-### CLI Commands
-
-- `quit`, `exit`, `q` - Exit the chat
-- `reset` - Clear conversation history
-- `help` - Show usage tips
-
-## Key Concepts
-
-### 1. Configuration Pattern
-
-The template uses a shared `Configuration` dataclass:
-
-```python
-from shared.config import Configuration
-
-config = Configuration.from_runnable_config(runnable_config)
-```
-
-This enables dependency injection across all agents and workflows.
-
-### 2. LLM Factory Functions
-
-Two utility functions provide LLM instances:
-
-```python
-from shared.utils import get_orchestrator_llm, get_text_llm
-
-orchestrator = get_orchestrator_llm(config)  # For reasoning
-text_llm = get_text_llm(config)              # For generation
-```
-
-### 3. Workflow as Tools
-
-Workflows are wrapped as LangChain tools:
-
-```python
-@tool
-async def run_planning_workflow(query: str, *, config: ...) -> str:
-    result = await planning_graph.ainvoke(initial_state, config)
-    return json.dumps(result)
-```
-
-### 4. Human-in-the-Loop
-
-Workflows can request human input:
-
-```python
-from langgraph.types import interrupt
-
-@tool
-def human_input(question: str) -> str:
-    response = interrupt({"question": question})
-    return response.get("data", "")
-```
-
-### 5. State Management
-
-Each workflow defines its own Pydantic state model:
-
-```python
-class PlanningState(BaseModel):
-    query: str
-    messages: list = Field(default_factory=list)
-    plan: Optional[Plan] = None
-
-    class Config:
-        arbitrary_types_allowed = True
-```
-
-## Customization
-
-### Adding a New Workflow
-
-1. Create a new directory in `workflows/`:
-   ```
-   workflows/my_workflow/
-   ├── graph.py
-   ├── state.py
-   ├── nodes.py
-   ├── tools.py
-   └── prompts.py
+1. **Install dependencies**
+   ```bash
+   poetry install
    ```
 
-2. Define your state model in `state.py`
-3. Implement tools in `tools.py`
-4. Create nodes in `nodes.py`
-5. Build the graph in `graph.py`
-6. Create a tool wrapper in `main_agent/workflow_tools.py`
-7. Add the tool to the main agent in `main_agent/agent.py`
+2. **Configure environment**
+   Create a `.env` (copy `.env.example` if provided) and set:
+   ```
+   OPENAI_API_KEY=sk-...
+   # Optional overrides
+   # OPENAI_BASE_URL=https://your-gateway/v1
+   # DISCORD_WEBHOOK_URL=https://discord.com/api/webhooks/...
+   # SUGGESTION_POLL_SECONDS=30
+   # SUGGESTION_MAX_PER_CYCLE=1
+   ```
 
-### Adding Custom Tools
+3. **Seed the database (optional but recommended for demos)**
+   ```bash
+   poetry run python -m database.mock_data         # or run setup_mock_data.py for interactive reset
+   poetry run python setup_mock_suggestions.py     # optional: demo reminder rows
+   poetry run python setup_vector_db.py            # optional: populate Chroma with mock docs
+   ```
 
-Define tools using the `@tool` decorator:
+4. **Run the CLI assistant**
+   ```bash
+   poetry run python main.py
+   ```
+   The agent will automatically call workflows like assignment assessment, scheduling, progress logging, and suggestions based on user intent.
 
-```python
-from langchain_core.tools import tool, InjectedToolArg
-from langchain_core.runnables import RunnableConfig
+5. **Generate proactive suggestions on demand**
+   ```bash
+   poetry run python <<'PY'
+   import asyncio
+   from langchain_core.runnables import RunnableConfig
+   from shared.config import Configuration
+   from main_agent.workflow_tools import generate_suggestions
 
-@tool
-async def my_custom_tool(
-    param: str,
-    *, config: Annotated[RunnableConfig, InjectedToolArg]
-) -> str:
-    """Tool description for the LLM."""
-    cfg = Configuration.from_runnable_config(config)
-    # Your tool logic here
-    return result
-```
+   async def main():
+       cfg = Configuration(); cfg.validate()
+       result = await generate_suggestions.ainvoke(
+           {}, config=RunnableConfig(configurable={"openai_api_key": cfg.openai_api_key})
+       )
+       print(result)
 
-### Modifying Prompts
+   asyncio.run(main())
+   PY
+   ```
+   Suggestions are persisted to the `suggestions` table and returned as JSON for any UI.
 
-Edit the prompt files in each workflow:
-- `workflows/planning/prompts.py`
-- `workflows/data_processing/prompts.py`
+6. **Dispatch notifications (Discord)**
+   ```bash
+   poetry run python -m notifications.dispatcher
+   ```
+   The dispatcher polls pending suggestions and posts to the configured Discord webhook. Tweak cadence via `SUGGESTION_POLL_SECONDS` and `SUGGESTION_MAX_PER_CYCLE`.
 
-## Best Practices
+7. **Run tests**
+   ```bash
+   poetry run pytest
+   ```
 
-1. **State Design**: Keep state models simple with clear fields
-2. **Tool Naming**: Use descriptive names that help the LLM understand when to use them
-3. **Prompts**: Provide clear instructions and examples in system prompts
-4. **Error Handling**: Wrap tool calls in try/except blocks
-5. **Configuration**: Use the config injection pattern for all parameters
-6. **Async**: Use async/await throughout for better performance
+## Additional Workflows
 
-## Troubleshooting
+- **Assignment Assessment**: `workflows/assignment_assessment/README.md` (structure & prompts).
+- **Progress Tracking**: see `workflows/progress_tracking/README.md` for conversation loop examples.
+- **Suggestions**: `workflows/suggestions/README.md` covers context gathering and LLM prompts.
 
-### "Configuration error: OPENAI_API_KEY environment variable is not set"
+Each workflow is a LangGraph graph composed of Pydantic states and async node functions, surfaced to the orchestrator via tools defined in `main_agent/workflow_tools.py`.
 
-Make sure you have a `.env` file with your API key:
+## Notifications & Automation
 
-```bash
-echo "OPENAI_API_KEY=sk-your-key-here" > .env
-```
+- `notifications/dispatcher.py` can be scheduled (cron/systemd) for continuous delivery.
+- `notifications/discord.py` is intentionally minimal—extend it for Slack, email, or SMS by adding new channel clients and toggles in `channel_config`.
 
-### Workflows not executing
+## Development Tips
 
-Check that:
-1. Tools are properly registered in `main_agent/agent.py`
-2. Tool descriptions clearly indicate when to use them
-3. The agent has permission to use tools (check `verbose=True` output)
-
-### Human-in-the-loop not working
-
-The current implementation returns "WORKFLOW_NEEDS_INPUT" messages. To fully implement:
-1. Detect these messages in the main agent
-2. Prompt the user for input
-3. Resume the workflow with the user's response using `Command(resume=...)`
+- Use `database/mock_data.populate_mock_data()` to reset the dataset quickly.
+- `setup_mock_data.py` prompts before clearing data—handy when switching scenarios.
+- Vector embeddings live under `vector_db/`. Regenerate after updating content.
+- For progress tracking demos, run `poetry run python tests/test_progress_tracking_conversation.py`.
 
 ## License
 
@@ -266,4 +171,4 @@ MIT
 
 ## Contributing
 
-Feel free to fork and customize this template for your needs!
+Bug reports, feature ideas, and PRs are welcome—especially around new notification channels, Brightspace ingestion, and richer scheduling integrations.

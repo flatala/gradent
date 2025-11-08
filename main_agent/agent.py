@@ -11,27 +11,10 @@ from langchain_core.tools import BaseTool
 
 from shared.config import Configuration
 from shared.utils import get_orchestrator_llm
-from .workflow_tools import run_planning_workflow
+from .workflow_tools import run_scheduler_workflow, assess_assignment, generate_suggestions
+from .prompts import SYSTEM_PROMPT
 
-
-SYSTEM_PROMPT = """You are a helpful AI assistant with access to a planning workflow.
-
-Core behavior:
-- For greetings or general chit-chat: respond briefly, friendly, and neutrally. Do not mention tools or workflows unless the user asks for planning or a tool-assisted action.
-- Use tools only when they are genuinely needed to fulfill the request; otherwise, respond directly without calling tools.
-
-Planning workflow:
-- Available tool: run_planning_workflow — creates detailed plans, can research with web search, and ask for clarification.
-- Invoke the planning workflow only when the user explicitly asks to plan, outline, roadmap, break down steps, schedule, or research a plan.
-
-Interaction rules:
-- If the workflow asks for input (you’ll see WORKFLOW_NEEDS_INPUT), pass that question to the user and incorporate the user’s answer.
-- Keep responses concise and helpful; avoid boilerplate about your capabilities unless asked.
-"""
-
-PLAIN_CHAT_SYSTEM = (
-    "You are a helpful, concise assistant. Answer directly and clearly."
-)
+_logger = logging.getLogger("chat")
 
 
 def _coerce_text(message: AIMessage) -> str:
@@ -65,9 +48,6 @@ def _coerce_text(message: AIMessage) -> str:
         if texts:
             return "\n".join(texts)
     return ""
-
-
-_logger = logging.getLogger("chat")
 
 def enable_chat_logging(level: int = logging.INFO, to_console: bool = True, to_file: bool = True) -> None:
     """Enable chat logging on demand.
@@ -120,7 +100,9 @@ def create_main_agent(config: Configuration) -> AgentExecutor:
 
     # Define tools
     tools: List[BaseTool] = [
-        run_planning_workflow,
+        run_scheduler_workflow,
+        assess_assignment,
+        generate_suggestions,
     ]
 
     # Create prompt template
@@ -160,11 +142,12 @@ class MainAgent:
         self.chat_history = []
         _logger.info("Agent initialized with models - orchestrator=%s, text=%s", config.orchestrator_model, config.text_model)
 
-    async def chat(self, user_message: str) -> str:
+    async def chat(self, user_message: str, *, config: dict | None = None) -> str:
         """Send a message to the agent and get a response.
 
         Args:
             user_message: The user's message
+            config: Optional LangChain runnable configuration (callbacks, tags, etc.)
 
         Returns:
             The agent's response
@@ -173,10 +156,14 @@ class MainAgent:
         _logger.info("USER: %s", _safe_preview(user_message))
         _logger.info("ROUTE: tools-agent")
         _logger.info("AGENT INPUT: %s", json.dumps({"input": user_message, "chat_history_len": len(self.chat_history)}))
-        result = await self.agent.ainvoke({
-            "input": user_message,
-            "chat_history": self.chat_history,
-        })
+        invoke_config = config or {}
+        result = await self.agent.ainvoke(
+            {
+                "input": user_message,
+                "chat_history": self.chat_history,
+            },
+            config=invoke_config,
+        )
         response = result.get("output", "")
         _logger.info("AGENT OUTPUT: %s", _safe_preview(response))
 

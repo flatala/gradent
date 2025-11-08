@@ -49,3 +49,15 @@ htmlcov/
 
 # LangGraph
 cache/
+
+# Google OAuth
+token.pickle
+credentials.json
+
+# Google OAuth
+credentials.json
+token.pickle
+# Databases
+data/
+
+poetry.lock
