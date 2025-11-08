@@ -66,7 +66,7 @@ def ingest_text_chunks(
     vector_store = get_vector_store()
     ids = vector_store.add_documents(documents)
     
-    print(f"✓ Ingested {len(chunks)} chunks for {metadata.get('doc_id', 'unknown')}")
+    print(f"[OK] Ingested {len(chunks)} chunks for {metadata.get('doc_id', 'unknown')}")
     
     return ids
 

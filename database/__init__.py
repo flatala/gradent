@@ -6,6 +6,10 @@ from .models import (
     Assignment,
     AssignmentAssessment,
     AssignmentStatus,
+    UserAssignment,
+    StudyHistory,
+    StudyBlock,
+    StudyBlockStatus,
 )
 from .connection import (
     get_db_session,
@@ -20,6 +24,10 @@ __all__ = [
     "Assignment",
     "AssignmentAssessment",
     "AssignmentStatus",
+    "UserAssignment",
+    "StudyHistory",
+    "StudyBlock",
+    "StudyBlockStatus",
     "get_db_session",
     "init_db",
     "get_db_path",

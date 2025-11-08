@@ -19,6 +19,15 @@ class AssignmentStatus(str, Enum):
     DONE = "done"
 
 
+class StudyBlockStatus(str, Enum):
+    """Study block completion status."""
+    PLANNED = "planned"
+    COMPLETED = "completed"
+    PARTIAL = "partial"
+    SKIPPED = "skipped"
+    CANCELLED = "cancelled"
+
+
 class User(Base):
     """User account."""
     __tablename__ = "users"
@@ -32,6 +41,9 @@ class User(Base):
 
     # Relationships
     courses = relationship("Course", back_populates="user", cascade="all, delete-orphan")
+    user_assignments = relationship("UserAssignment", back_populates="user", cascade="all, delete-orphan")
+    study_history = relationship("StudyHistory", back_populates="user", cascade="all, delete-orphan")
+    study_blocks = relationship("StudyBlock", back_populates="user", cascade="all, delete-orphan")
 
 
 class Course(Base):
@@ -52,23 +64,34 @@ class Course(Base):
 
 
 class Assignment(Base):
-    """Course assignment or project."""
+    """Course assignment (universal/LMS-synced data).
+    
+    This represents the assignment as it exists in the LMS.
+    User-specific progress is tracked in UserAssignment.
+    """
     __tablename__ = "assignments"
 
     id = Column(Integer, primary_key=True)
     course_id = Column(Integer, ForeignKey("courses.id"), nullable=False)
+    
+    # Assignment metadata (from LMS)
     title = Column(String, nullable=False)
     description_short = Column(Text, nullable=True)
     due_at = Column(DateTime, nullable=True)
     lms_link = Column(String, nullable=True)
-    estimated_hours_user = Column(Float, nullable=True)  # User's own estimate
-    status = Column(SQLEnum(AssignmentStatus), default=AssignmentStatus.NOT_STARTED)
+    lms_assignment_id = Column(String, nullable=True)  # External LMS ID (unique per course)
+    
+    # Assignment properties (from LMS)
+    weight_percentage = Column(Float, nullable=True)  # Grade weight in course
+    max_points = Column(Float, nullable=True)
+    
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     # Relationships
     course = relationship("Course", back_populates="assignments")
     assessments = relationship("AssignmentAssessment", back_populates="assignment", cascade="all, delete-orphan")
+    user_assignments = relationship("UserAssignment", back_populates="assignment", cascade="all, delete-orphan")
 
 
 class SuggestionStatus(str, Enum):
@@ -148,3 +171,118 @@ class Suggestion(Base):
     last_notified_at = Column(DateTime, nullable=True)
 
     user = relationship("User")
+
+
+class UserAssignment(Base):
+    """User-specific assignment tracking (personalized progress and settings).
+    
+    Links users to assignments with their personal progress, status, and preferences.
+    This allows multiple users to work on the same assignment with different progress.
+    """
+    __tablename__ = "user_assignments"
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    assignment_id = Column(Integer, ForeignKey("assignments.id"), nullable=False)
+    
+    # User-specific status and progress
+    status = Column(SQLEnum(AssignmentStatus), default=AssignmentStatus.NOT_STARTED)
+    
+    # Time tracking (cached/computed fields)
+    hours_estimated_user = Column(Float, nullable=True)  # User's own estimate (overrides AI)
+    hours_done = Column(Float, default=0.0, nullable=False)  # Sum from study_history
+    hours_remaining = Column(Float, nullable=True)  # Computed: uses assessment or user estimate
+    last_worked_at = Column(DateTime, nullable=True)  # Last study session timestamp
+    
+    # User-specific metadata
+    notes = Column(Text, nullable=True)  # Personal notes about the assignment
+    priority = Column(Integer, nullable=True)  # User can override priority (1-5, 5=highest)
+    is_archived = Column(Boolean, default=False)  # Hide from active list after completion
+    
+    # Timestamps
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # Relationships
+    user = relationship("User", back_populates="user_assignments")
+    assignment = relationship("Assignment", back_populates="user_assignments")
+    study_history = relationship("StudyHistory", back_populates="user_assignment", cascade="all, delete-orphan")
+    study_blocks = relationship("StudyBlock", back_populates="user_assignment", cascade="all, delete-orphan")
+
+
+class StudyHistory(Base):
+    """Records every study session/progress update.
+    
+    This is the source of truth for progress tracking. All hours_done computations
+    aggregate from this table.
+    """
+    __tablename__ = "study_history"
+    
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    user_assignment_id = Column(Integer, ForeignKey("user_assignments.id"), nullable=True)
+    course_id = Column(Integer, ForeignKey("courses.id"), nullable=True)  # For general course study
+    
+    # Time and date
+    date = Column(DateTime, nullable=False, default=datetime.utcnow)
+    minutes = Column(Integer, nullable=False)
+    
+    # Quality metrics
+    focus_rating_1to5 = Column(Integer, nullable=True)  # 1=distracted, 5=deep focus
+    quality_rating_1to5 = Column(Integer, nullable=True)  # 1=unproductive, 5=very productive
+    
+    # Context
+    source = Column(String, nullable=False)  # 'scheduled_block', 'ad_hoc', 'calendar_sync'
+    study_block_id = Column(Integer, ForeignKey("study_blocks.id"), nullable=True)
+    notes = Column(Text, nullable=True)  # User notes about this session
+    
+    created_at = Column(DateTime, default=datetime.utcnow)
+    
+    # Relationships
+    user = relationship("User", back_populates="study_history")
+    user_assignment = relationship("UserAssignment", back_populates="study_history")
+    course = relationship("Course")
+    study_block = relationship("StudyBlock", back_populates="history_entries")
+
+
+class StudyBlock(Base):
+    """Planned or completed study session.
+    
+    Represents scheduled study time, either from the scheduler agent or
+    user-created. Can be linked to calendar events.
+    """
+    __tablename__ = "study_blocks"
+    
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    user_assignment_id = Column(Integer, ForeignKey("user_assignments.id"), nullable=True)
+    course_id = Column(Integer, ForeignKey("courses.id"), nullable=True)  # For general course study
+    
+    # Calendar integration
+    calendar_event_id = Column(String, nullable=True)  # Google/Outlook event ID
+    calendar_provider = Column(String, nullable=True)  # 'google', 'outlook', 'manual'
+    
+    # Timing
+    start_at = Column(DateTime, nullable=False)
+    end_at = Column(DateTime, nullable=False)
+    planned_minutes = Column(Integer, nullable=False)
+    
+    # Completion tracking
+    status = Column(SQLEnum(StudyBlockStatus), default=StudyBlockStatus.PLANNED)
+    actual_minutes = Column(Integer, nullable=True)  # Filled after completion
+    focus_rating_1to5 = Column(Integer, nullable=True)  # Filled after completion
+    
+    # Metadata
+    title = Column(String, nullable=True)  # e.g., "Work on MDP Assignment"
+    description = Column(Text, nullable=True)  # What to work on in this block
+    notes = Column(Text, nullable=True)  # Post-session notes
+    
+    # Timestamps
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # Relationships
+    user = relationship("User", back_populates="study_blocks")
+    user_assignment = relationship("UserAssignment", back_populates="study_blocks")
+    course = relationship("Course")
+    history_entries = relationship("StudyHistory", back_populates="study_block", cascade="all, delete-orphan")

@@ -3,7 +3,14 @@ from datetime import datetime, timedelta
 from typing import List
 
 from .connection import get_db_session, init_db
-from .models import User, Course, Assignment, AssignmentAssessment, AssignmentStatus
+from .models import (
+    User,
+    Course,
+    Assignment,
+    AssignmentAssessment,
+    AssignmentStatus,
+    UserAssignment,
+)
 
 
 def create_mock_user() -> int:
@@ -23,7 +30,7 @@ def create_mock_user() -> int:
         db.add(user)
         db.flush()
         user_id = user.id
-        print(f"✓ Created user: {user.name} (ID: {user_id})")
+        print(f"[OK] Created user: {user.name} (ID: {user_id})")
         return user_id
 
 
@@ -56,7 +63,7 @@ def create_mock_courses(user_id: int) -> List[int]:
         db.add_all(courses)
         db.flush()
         course_ids = [c.id for c in courses]
-        print(f"✓ Created {len(courses)} courses")
+        print(f"[OK] Created {len(courses)} courses")
         return course_ids
 
 
@@ -73,7 +80,9 @@ def create_mock_assignments(course_ids: List[int]) -> List[int]:
                 description_short="Implement value iteration and policy iteration for gridworld MDPs",
                 due_at=now + timedelta(days=14),
                 lms_link="https://brightspace.gatech.edu/assignment/1",
-                status=AssignmentStatus.NOT_STARTED
+                lms_assignment_id="rl_assignment_1",
+                weight_percentage=15.0,
+                max_points=100.0,
             ),
             Assignment(
                 course_id=course_ids[0],
@@ -81,7 +90,9 @@ def create_mock_assignments(course_ids: List[int]) -> List[int]:
                 description_short="Train a DQN agent on Atari games and analyze performance",
                 due_at=now + timedelta(days=28),
                 lms_link="https://brightspace.gatech.edu/assignment/2",
-                status=AssignmentStatus.NOT_STARTED
+                lms_assignment_id="rl_assignment_2",
+                weight_percentage=25.0,
+                max_points=120.0,
             ),
             # ML Course assignments
             Assignment(
@@ -90,8 +101,9 @@ def create_mock_assignments(course_ids: List[int]) -> List[int]:
                 description_short="Compare decision trees, neural nets, boosting, SVM, and kNN on two datasets",
                 due_at=now + timedelta(days=21),
                 lms_link="https://brightspace.gatech.edu/assignment/3",
-                status=AssignmentStatus.IN_PROGRESS,
-                estimated_hours_user=15.0
+                lms_assignment_id="ml_assignment_1",
+                weight_percentage=20.0,
+                max_points=100.0,
             ),
             Assignment(
                 course_id=course_ids[1],
@@ -99,7 +111,9 @@ def create_mock_assignments(course_ids: List[int]) -> List[int]:
                 description_short="Implement and analyze genetic algorithms, simulated annealing, and MIMIC",
                 due_at=now + timedelta(days=35),
                 lms_link="https://brightspace.gatech.edu/assignment/4",
-                status=AssignmentStatus.NOT_STARTED
+                lms_assignment_id="ml_assignment_2",
+                weight_percentage=20.0,
+                max_points=100.0,
             ),
             # CV Course assignments
             Assignment(
@@ -108,15 +122,16 @@ def create_mock_assignments(course_ids: List[int]) -> List[int]:
                 description_short="Implement Gaussian and Laplacian pyramids, create hybrid images",
                 due_at=now + timedelta(days=10),
                 lms_link="https://brightspace.gatech.edu/assignment/5",
-                status=AssignmentStatus.IN_PROGRESS,
-                estimated_hours_user=8.0
+                lms_assignment_id="cv_assignment_1",
+                weight_percentage=10.0,
+                max_points=80.0,
             ),
         ]
         
         db.add_all(assignments)
         db.flush()
         assignment_ids = [a.id for a in assignments]
-        print(f"✓ Created {len(assignments)} assignments")
+        print(f"[OK] Created {len(assignments)} assignments")
         return assignment_ids
 
 
@@ -229,7 +244,56 @@ def create_mock_assessments(assignment_ids: List[int]) -> None:
         
         db.add_all(assessments)
         db.flush()
-        print(f"✓ Created {len(assessments)} assignment assessments")
+        print(f"[OK] Created {len(assessments)} assignment assessments")
+
+
+def create_mock_user_assignments(user_id: int, assignment_ids: List[int]) -> List[int]:
+    """Create user-specific assignment rows with progress info."""
+    with get_db_session() as db:
+        user_assignments = [
+            UserAssignment(
+                user_id=user_id,
+                assignment_id=assignment_ids[0],
+                status=AssignmentStatus.NOT_STARTED,
+                hours_estimated_user=12.0,
+                priority=4,
+            ),
+            UserAssignment(
+                user_id=user_id,
+                assignment_id=assignment_ids[1],
+                status=AssignmentStatus.NOT_STARTED,
+                hours_estimated_user=18.0,
+                priority=5,
+            ),
+            UserAssignment(
+                user_id=user_id,
+                assignment_id=assignment_ids[2],
+                status=AssignmentStatus.IN_PROGRESS,
+                hours_estimated_user=15.0,
+                hours_done=4.0,
+                priority=3,
+            ),
+            UserAssignment(
+                user_id=user_id,
+                assignment_id=assignment_ids[3],
+                status=AssignmentStatus.NOT_STARTED,
+                hours_estimated_user=10.0,
+                priority=2,
+            ),
+            UserAssignment(
+                user_id=user_id,
+                assignment_id=assignment_ids[4],
+                status=AssignmentStatus.IN_PROGRESS,
+                hours_estimated_user=8.0,
+                hours_done=2.0,
+                priority=4,
+            ),
+        ]
+        db.add_all(user_assignments)
+        db.flush()
+        ua_ids = [ua.id for ua in user_assignments]
+        print(f"[OK] Created {len(user_assignments)} user assignment records")
+        return ua_ids
 
 
 def populate_mock_data() -> None:
@@ -246,9 +310,10 @@ def populate_mock_data() -> None:
     course_ids = create_mock_courses(user_id)
     assignment_ids = create_mock_assignments(course_ids)
     create_mock_assessments(assignment_ids)
+    create_mock_user_assignments(user_id, assignment_ids)
     
     print("\n" + "=" * 60)
-    print("✓ Mock data population complete!")
+    print("[OK] Mock data population complete!")
     print("=" * 60)
     print(f"\nDatabase location: {get_db_session}")
     print("\nYou can now query the database to verify the data.")
@@ -259,9 +324,9 @@ def clear_all_data() -> None:
     from .models import Base
     from .connection import engine
     
-    print("\n⚠️  Dropping all tables...")
+    print("\n[WARN]  Dropping all tables...")
     Base.metadata.drop_all(bind=engine)
-    print("✓ All tables dropped")
+    print("[OK] All tables dropped")
     
     print("Recreating tables...")
     init_db()
