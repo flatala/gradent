@@ -1,7 +1,8 @@
 """State definition for the planning workflow."""
-from typing import List, Optional
+from typing import List, Optional, Annotated
 
 from pydantic import BaseModel, Field
+from langgraph.graph import add_messages
 
 
 class Plan(BaseModel):
@@ -24,8 +25,10 @@ class PlanningState(BaseModel):
     # Input
     query: str = Field(description="The planning query or request")
 
-    # Message history
-    messages: list = Field(default_factory=list, description="LLM conversation history")
+    # Message history (append-only merge using LangGraph's add_messages reducer)
+    messages: Annotated[list, add_messages] = Field(
+        default_factory=list, description="LLM conversation history"
+    )
 
     # Intermediate data
     search_results: Optional[List[dict]] = Field(

@@ -30,16 +30,16 @@ async def planning_agent(
 
     This node:
     - Uses the orchestrator LLM for reasoning
-    - Can call web_search or human_input tools
+    - Can call web_search tool
     - Decides when enough information is gathered
     """
-    from .tools import web_search, human_input
+    from .tools import web_search
 
     cfg = Configuration.from_runnable_config(config)
     llm = get_orchestrator_llm(cfg)
 
-    # Bind tools to the LLM
-    llm_with_tools = llm.bind_tools([web_search, human_input])
+    # Bind tools to the LLM (no human_input to avoid interrupts)
+    llm_with_tools = llm.bind_tools([web_search])
 
     # Invoke the LLM
     response = await llm_with_tools.ainvoke(state.messages)
