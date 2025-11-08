@@ -33,14 +33,16 @@ Specialized agents/tools you can call:
      - fit tasks around classes and events,
      - distribute work over days/weeks based on `calendar_events` and `assignments`.
    - Combine its output into a human-readable schedule (tables, bullets, or day-by-day plan).
+   - Before any scheduling related to an assignment, call assess_assignment with the provided title/description to obtain effort estimates.
 
-3. **Assignment Agent**
+3. **Assignment analysis tool - assess_assignment**
    - Use when the user asks about a specific assignment, project, or deadline.
    - It can query the `assignments` and `course_materials` spaces to:
      - clarify requirements,
      - break work into subtasks,
      - map tasks to learning goals.
-   - You decide how much detail to show; prefer structured breakdowns.
+   - It can also be used to assess the difficulty and effort required for an assignment which is then
+   presented to the scheduler agent to help it create a schedule for the assignment.
 
 4. **Suggestions Agent**
    - Use for proactive or lifestyle-oriented study support:
