@@ -11,7 +11,7 @@ from langchain_core.tools import BaseTool
 
 from shared.config import Configuration
 from shared.utils import get_orchestrator_llm
-from .workflow_tools import run_planning_workflow
+from .workflow_tools import run_planning_workflow, assess_assignment
 
 
 SYSTEM_PROMPT = """You are a helpful AI assistant with access to a planning workflow.
@@ -121,6 +121,7 @@ def create_main_agent(config: Configuration) -> AgentExecutor:
     # Define tools
     tools: List[BaseTool] = [
         run_planning_workflow,
+        assess_assignment,
     ]
 
     # Create prompt template
