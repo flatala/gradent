@@ -1,103 +1,61 @@
-# LangGraph Multi-Agent Template
+# Gradent - AI Exam Generator
 
-A minimal, reusable template for building conversational AI systems with LangGraph workflow subgraphs.
+An AI-powered exam generation system with a modern web interface. Upload PDFs, describe your requirements, and get professionally formatted exams in seconds.
 
-## Architecture
+## 🌟 Features
 
-This template demonstrates a multi-agent architecture where:
+- **📄 PDF Processing**: Upload lecture notes, textbooks, or any educational PDFs
+- **🤖 AI-Powered**: Uses advanced LLMs (Gemini) via OpenRouter
+- **🎨 Modern UI**: Beautiful React interface with drag-and-drop uploads
+- **⚡ Real-time Generation**: Streaming responses for immediate feedback
+- **📝 LaTeX Support**: Renders mathematical formulas beautifully
+- **💾 Export Options**: Download as Markdown or copy to clipboard
 
-1. **Main Agent** - A conversational LangChain ReActAgent that users interact with
-2. **Workflow Subgraphs** - Specialized LangGraph workflows that the main agent can invoke as tools
+## 🚀 Quick Start
 
-```
-Human <-> Main Agent (LangChain ReActAgent)
-              |
-              ├─> Planning Workflow (LangGraph subgraph)
-              │       └─> Tools: web_search, human_input
-              │
-              └─> Data Processing Workflow (LangGraph subgraph)
-                      └─> Tools: analyze_data, hello_world, human_input
-```
-
-## Project Structure
-
-```
-langgraph-template/
-├── main.py                          # CLI entrypoint
-├── model_config.json                # Model configuration
-├── .env.example                     # Environment variables template
-├── pyproject.toml                   # Poetry dependencies
-│
-├── main_agent/                      # Main conversational agent
-│   ├── agent.py                     # ReActAgent setup
-│   └── workflow_tools.py            # Tools that invoke subgraph workflows
-│
-├── workflows/                       # Workflow subgraphs
-│   ├── planning/                    # Planning workflow
-│   │   ├── graph.py                 # Graph definition
-│   │   ├── state.py                 # State model
-│   │   ├── nodes.py                 # Node implementations
-│   │   ├── tools.py                 # Workflow-specific tools
-│   │   └── prompts.py               # Prompt templates
-│   │
-│   └── data_processing/             # Data processing workflow
-│       ├── graph.py                 # Graph definition
-│       ├── state.py                 # State model
-│       ├── nodes.py                 # Node implementations
-│       ├── tools.py                 # Workflow-specific tools
-│       └── prompts.py               # Prompt templates
-│
-└── shared/                          # Shared utilities
-    ├── config.py                    # Configuration dataclass
-    └── utils.py                     # LLM factory functions
-```
-
-## Features
-
-### Main Agent
-- **Conversational Interface**: Natural language chat with history
-- **Workflow Orchestration**: Intelligently invokes specialized workflows
-- **Two OpenAI Models**:
-  - Orchestrator model for reasoning (e.g., `gpt-4o`)
-  - Text model for generation (e.g., `gpt-4o-mini`)
-
-### Planning Workflow
-- **Multi-step Planning**: Breaks down complex goals into actionable steps
-- **Web Search**: Uses DuckDuckGo to research topics
-- **Human-in-the-Loop**: Can ask user for clarification
-- **Structured Output**: Returns plans as JSON with goal, steps, and considerations
-
-### Data Processing Workflow
-- **Data Analysis**: Analyzes structure and content of various data types
-- **Tool Integration**: Demonstrates custom tool usage (hello_world, analyze_data)
-- **Human-in-the-Loop**: Can request user feedback during processing
-- **Structured Output**: Returns processing results with summary and insights
-
-## Setup
-
-### 1. Clone or Copy the Template
+### Installation
 
 ```bash
-cd langgraph-template
-```
-
-### 2. Install Dependencies
-
-Using Poetry (recommended):
-
-```bash
+# 1. Install backend
 poetry install
+
+# 2. Install frontend
+cd frontend && npm install && cd ..
+
+# 3. Install Next.js API
+cd QuestGen-AI-Agent/code && npm install && cd ../..
+
+# 4. Setup environment
+cp .env.example .env
+# Add your OPENROUTER_API_KEY to .env
 ```
 
-Or using pip:
+### Run Application
 
 ```bash
-pip install -r requirements.txt
+# Easy way (one command):
+./start.sh
+
+# Or manually (3 terminals):
+# Terminal 1: cd QuestGen-AI-Agent/code && npm run dev
+# Terminal 2: python -m app.main
+# Terminal 3: cd frontend && npm run dev
 ```
 
-### 3. Configure Environment
+### Access
+- **Web UI**: http://localhost:5173
+- **API Docs**: http://localhost:8000/docs
 
-Create a `.env` file from the example:
+**Full guide:** [QUICKSTART.md](QUICKSTART.md)
+
+## 📖 Documentation
+
+- **[QUICKSTART.md](QUICKSTART.md)** - Installation and setup
+- **[FRONTEND_BACKEND_GUIDE.md](FRONTEND_BACKEND_GUIDE.md)** - Architecture explained
+- **[ARCHITECTURE.md](ARCHITECTURE.md)** - Visual diagrams
+- **[workflows/exam_api/README.md](workflows/exam_api/README.md)** - Workflow details
+
+## 🏗️ Architecture
 
 ```bash
 cp .env.example .env

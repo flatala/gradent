@@ -7,8 +7,7 @@ from workflows.exam_api import exam_api_graph, ExamAPIState
 
 async def test_exam_api_workflow():
     """Test the exam API workflow with sample data."""
-
-    api_key="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"
+    api_key = os.getenv("OPENROUTER_API_KEY")
     model_name = "qwen/qwen3-30b-a3b:free"  # More reliable free model
 
     print("=" * 80)
