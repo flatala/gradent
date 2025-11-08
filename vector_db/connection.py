@@ -11,6 +11,9 @@ from chromadb.config import Settings
 # Load environment variables
 load_dotenv()
 
+# Disable ChromaDB telemetry to suppress warnings
+os.environ["ANONYMIZED_TELEMETRY"] = "False"
+
 # Vector DB path - in the data directory
 VECTOR_DB_DIR = Path(__file__).parent.parent / "data" / "vector_db"
 VECTOR_DB_DIR.mkdir(parents=True, exist_ok=True)
@@ -51,15 +54,22 @@ def get_vector_store(reset: bool = False) -> Chroma:
             model="text-embedding-3-small"  # Cheaper and faster
         )
         
+        # Configure ChromaDB settings with telemetry disabled
+        chroma_settings = Settings(
+            anonymized_telemetry=False,
+            allow_reset=True
+        )
+        
         # Create or load vector store
         _vector_store = Chroma(
             collection_name=COLLECTION_NAME,
             embedding_function=embeddings,
             persist_directory=str(VECTOR_DB_DIR),
-            collection_metadata={"hnsw:space": "cosine"}
+            collection_metadata={"hnsw:space": "cosine"},
+            client_settings=chroma_settings
         )
         
-        print(f"✓ Vector store initialized at: {VECTOR_DB_DIR}")
+        print(f"[OK] Vector store initialized at: {VECTOR_DB_DIR}")
     
     return _vector_store
 
