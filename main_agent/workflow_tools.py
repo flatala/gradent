@@ -321,7 +321,6 @@ def _store_suggestions(
             )
 
             channel_config = {
-                "chainlit": True,
                 "discord": discord_enabled,
             }
 

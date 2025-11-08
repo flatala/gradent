@@ -11,8 +11,8 @@ Context Updater / DB → Suggestions Workflow (LangGraph) → LangChain Tool `ge
 1. **collect_context (`nodes.py`)**  
    Queries the database for the target user (default: first user in the `users` table) and assembles:
    - Assignments bucketed into `overdue`, `due_soon` (≤7 days), and `later`, including the latest `AssignmentAssessment`.
-   - Calendar gaps (placeholder today; ready for real calendar integration).
-   - Study-history / spaced-repetition signals (placeholder today).
+   - Calendar gaps (still mocked today; ready for real calendar integration).
+   - Study-history / spaced-repetition signals pulled from the `study_history` table (latest 20 entries, joined with assignments and courses).
    - Resource matches by linking mock assignment documents from `vector_db/mock_documents.py`.
 
 2. **generate_suggestions_node (`nodes.py`)**  
@@ -26,7 +26,7 @@ Context Updater / DB → Suggestions Workflow (LangGraph) → LangChain Tool `ge
 4. **LangChain tool (`main_agent/workflow_tools.py`)**  
    - `generate_suggestions(user_id: Optional[int])` wraps the graph and returns a JSON string.  
    - Defaults to the first user if `user_id` is omitted.  
-   - Persists each suggestion to the `suggestions` SQL table (idempotent upsert) with channel flags for Chainlit and Discord.  
+   - Persists each suggestion to the `suggestions` SQL table (idempotent upsert) with channel flags for downstream notifiers (e.g., Discord).  
    - Logs tool calls and handles errors gracefully.
 
 5. **Orchestrator integration (`main_agent/agent.py` & `prompts.py`)**  
@@ -34,7 +34,7 @@ Context Updater / DB → Suggestions Workflow (LangGraph) → LangChain Tool `ge
    - The system prompt instructs the orchestrator to call it when the user asks for reminders / next steps or when new data arrives.
 
 6. **Notification surfaces**  
-   - Chainlit session shows active suggestions on start; `/done <n>`, `/dismiss <n>`, `/refresh` commands update their status.  
+   - CLI / orchestrator responses return structured JSON so you can surface suggestions in any UI.  
    - Discord delivery is handled by `notifications/dispatcher.py` (polling worker) + `notifications/discord.py` webhook helper.  
    - Suggestion lifecycle tracked via `SuggestionStatus` (`pending` → `notified` → `completed`/`dismissed`).
 
@@ -44,7 +44,8 @@ Populate the SQLite database via `database/mock_data.py` (or your ingestion pipe
 - `users`, `courses`, `assignments`
 - `assignment_assessments` (latest versions flagged `is_latest=True`)
 
-Calendar events and study history are currently mocked; replace `_mock_calendar_gaps` and `_mock_study_history` in `nodes.py` once those tables exist.
+Study history is read directly from `study_history` (joined via `user_assignments` / `assignments`).  
+Calendar events are still mocked; replace `_mock_calendar_gaps` in `nodes.py` once those tables exist.
 
 ## Running Locally
 
@@ -72,11 +73,7 @@ Calendar events and study history are currently mocked; replace `_mock_calendar_
    asyncio.run(main())
    PY
    ```
-3. Through the UI (Chainlit):
-   ```bash
-   poetry run chainlit run app/app.py -w
-   ```
-   Ask the assistant: “Any reminders for today?” or “What should I work on next?”
+3. Surface the suggestions however you like (e.g., via the main agent CLI). The JSON returned from step 2 is persisted to the database and ready for downstream consumers.
 
 4. (Optional) Start the Discord dispatcher in another terminal (default sends one notification per cycle):
    ```bash
@@ -97,7 +94,7 @@ Calendar events and study history are currently mocked; replace `_mock_calendar_
 
 ## Extending the Workflow
 
-- Replace the placeholder calendar/study-history functions with real queries.
+- Replace the placeholder calendar helper with a real query or calendar API integration.
 - Add richer scheduling: parse natural-language times, respect user quiet hours, support snooze/reschedule.
 - Expand categories (wellness, collaboration prompts) and update the prompt schema accordingly.
 - Integrate additional channels (email/SMS) by adapting the dispatcher and channel config.

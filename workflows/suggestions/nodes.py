@@ -3,13 +3,20 @@ from __future__ import annotations
 
 import json
 from datetime import datetime, timedelta
-from typing import Dict, Optional
+from typing import Dict, Optional, List
 
 from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_core.runnables import RunnableConfig
 
 from database.connection import get_db_session
-from database.models import Assignment, AssignmentAssessment, AssignmentStatus, User
+from database.models import (
+    Assignment,
+    AssignmentAssessment,
+    AssignmentStatus,
+    Course,
+    StudyHistory,
+    UserAssignment,
+)
 from shared.config import Configuration
 from shared.utils import get_text_llm
 from vector_db.mock_documents import get_all_mock_assignments
@@ -30,11 +37,10 @@ def _serialize_assignments(state: SuggestionsState) -> Dict[str, list]:
         "later": [],
     }
     with get_db_session() as db:
-        assignments = (
-            db.query(Assignment)
-            .join(Assignment.course)
-            .join(User)
-            .filter(User.id == state.user_id)
+        assignment_rows = (
+            db.query(Assignment, UserAssignment)
+            .join(UserAssignment, UserAssignment.assignment_id == Assignment.id)
+            .filter(UserAssignment.user_id == state.user_id)
             .all()
         )
 
@@ -42,17 +48,24 @@ def _serialize_assignments(state: SuggestionsState) -> Dict[str, list]:
             ass.assignment_id: ass
             for ass in (
                 db.query(AssignmentAssessment)
-                .join(Assignment)
-                .join(Assignment.course)
-                .join(User)
-                .filter(User.id == state.user_id, AssignmentAssessment.is_latest.is_(True))
+                .filter(
+                    AssignmentAssessment.assignment_id.in_(
+                        [assignment.id for assignment, _ in assignment_rows]
+                    ),
+                    AssignmentAssessment.is_latest.is_(True),
+                )
                 .all()
             )
         }
 
-        for assignment in assignments:
+        for assignment, user_assignment in assignment_rows:
             due_at = assignment.due_at
-            status = assignment.status.value if assignment.status else AssignmentStatus.NOT_STARTED.value
+            status_enum = (
+                user_assignment.status
+                if user_assignment and user_assignment.status
+                else AssignmentStatus.NOT_STARTED
+            )
+            status = status_enum.value
             assessment = assessments.get(assignment.id)
             payload = {
                 "id": assignment.id,
@@ -60,7 +73,10 @@ def _serialize_assignments(state: SuggestionsState) -> Dict[str, list]:
                 "title": assignment.title,
                 "due_at": due_at.isoformat() if due_at else None,
                 "status": status,
-                "estimated_hours_user": assignment.estimated_hours_user,
+                "estimated_hours_user": user_assignment.hours_estimated_user
+                if user_assignment
+                else None,
+                "hours_done": user_assignment.hours_done if user_assignment else 0.0,
                 "course_title": assignment.course.title if assignment.course else None,
                 "assessment": {
                     "effort_hours_low": assessment.effort_hours_low if assessment else None,
@@ -88,10 +104,49 @@ def _mock_calendar_gaps(state: SuggestionsState) -> list:
     return []
 
 
-def _mock_study_history(state: SuggestionsState) -> list:
-    """Placeholder study history for spaced repetition."""
-    # In a real implementation, this would query a study_sessions table.
-    return []
+def _load_study_history(state: SuggestionsState, limit: int = 20) -> List[dict]:
+    """Return recent study history entries for the user."""
+    with get_db_session() as db:
+        rows = (
+            db.query(
+                StudyHistory,
+                UserAssignment,
+                Assignment,
+                Course,
+            )
+            .outerjoin(UserAssignment, StudyHistory.user_assignment_id == UserAssignment.id)
+            .outerjoin(Assignment, UserAssignment.assignment_id == Assignment.id)
+            .outerjoin(Course, Assignment.course_id == Course.id)
+            .filter(StudyHistory.user_id == state.user_id)
+            .order_by(StudyHistory.date.desc())
+            .limit(limit)
+            .all()
+        )
+
+        history: List[dict] = []
+        for history_entry, user_assignment, assignment, course in rows:
+            history.append(
+                {
+                    "id": history_entry.id,
+                    "date": history_entry.date.isoformat() if history_entry.date else None,
+                    "minutes": history_entry.minutes,
+                    "source": history_entry.source,
+                    "focus_rating_1to5": history_entry.focus_rating_1to5,
+                    "quality_rating_1to5": history_entry.quality_rating_1to5,
+                    "notes": history_entry.notes,
+                    "assignment": {
+                        "user_assignment_id": user_assignment.id if user_assignment else None,
+                        "assignment_id": assignment.id if assignment else None,
+                        "title": assignment.title if assignment else None,
+                    },
+                    "course": {
+                        "course_id": course.id if course else None,
+                        "title": course.title if course else None,
+                    },
+                    "study_block_id": history_entry.study_block_id,
+                }
+            )
+    return history
 
 
 def _resource_matches(assignments_bucket: Dict[str, list]) -> list:
@@ -124,7 +179,7 @@ async def collect_context(
     """Gather assignments, calendar events, study history, and new resources."""
     assignments_bucket = _serialize_assignments(state)
     calendar_events = _mock_calendar_gaps(state)
-    study_history = _mock_study_history(state)
+    study_history = _load_study_history(state)
     resources = _resource_matches(assignments_bucket)
 
     return {
