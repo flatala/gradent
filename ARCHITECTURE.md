@@ -78,7 +78,7 @@
 ┌──────────────────────────────────────────────────────────────────────┐
 │                     ☁️ OPENROUTER (Cloud AI)                         │
 │                                                                      │
-│  Model: google/gemini-flash-1.5-8b                                   │
+│  Model: qwen/qwen3-30b-a3b:free                                      │
 │                                                                      │
 │  • Analyzes PDF content                                              │
 │  • Generates exam questions                                          │

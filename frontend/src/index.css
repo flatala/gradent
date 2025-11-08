@@ -1,294 +1,138 @@
-* {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
+All colors MUST be HSL.
+*/
+
+@layer base {
+  :root {
+    --background: 210 25% 98%;
+    --foreground: 215 25% 15%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 215 25% 15%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 215 25% 15%;
+
+    --primary: 195 85% 45%;
+    --primary-foreground: 0 0% 100%;
+    --primary-glow: 195 85% 60%;
+
+    --secondary: 210 20% 94%;
+    --secondary-foreground: 215 25% 20%;
+
+    --muted: 210 20% 96%;
+    --muted-foreground: 215 15% 50%;
+
+    --accent: 155 65% 50%;
+    --accent-foreground: 0 0% 100%;
+
+    --success: 145 70% 45%;
+    --success-foreground: 0 0% 100%;
+    --success-light: 145 60% 95%;
+
+    --warning: 35 90% 55%;
+    --warning-foreground: 0 0% 100%;
+
+    --destructive: 0 75% 55%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 215 20% 88%;
+    --input: 215 20% 92%;
+    --ring: 195 85% 45%;
+
+    --radius: 0.75rem;
+
+    --gradient-primary: linear-gradient(
+      135deg,
+      hsl(195 85% 45%),
+      hsl(195 85% 60%)
+    );
+    --gradient-success: linear-gradient(
+      135deg,
+      hsl(145 70% 45%),
+      hsl(155 65% 50%)
+    );
+    --gradient-card: linear-gradient(180deg, hsl(0 0% 100%), hsl(210 25% 99%));
+
+    --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+    --shadow-md: 0 4px 12px -2px rgb(0 0 0 / 0.08);
+    --shadow-lg: 0 10px 30px -5px rgb(0 0 0 / 0.12);
+    --shadow-glow: 0 0 40px hsl(195 85% 45% / 0.2);
+
+    --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    --transition-bounce: all 0.5s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+  }
+
+  .dark {
+    --background: 215 30% 8%;
+    --foreground: 210 25% 95%;
+
+    --card: 215 28% 12%;
+    --card-foreground: 210 25% 95%;
+
+    --popover: 215 28% 12%;
+    --popover-foreground: 210 25% 95%;
+
+    --primary: 195 85% 55%;
+    --primary-foreground: 215 30% 8%;
+    --primary-glow: 195 85% 70%;
+
+    --secondary: 215 25% 18%;
+    --secondary-foreground: 210 25% 95%;
+
+    --muted: 215 25% 16%;
+    --muted-foreground: 215 15% 60%;
+
+    --accent: 155 65% 55%;
+    --accent-foreground: 215 30% 8%;
+
+    --success: 145 70% 50%;
+    --success-foreground: 215 30% 8%;
+    --success-light: 145 60% 15%;
+
+    --warning: 35 90% 60%;
+    --warning-foreground: 215 30% 8%;
+
+    --destructive: 0 75% 60%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 215 25% 20%;
+    --input: 215 25% 18%;
+    --ring: 195 85% 55%;
+
+    --gradient-primary: linear-gradient(
+      135deg,
+      hsl(195 85% 55%),
+      hsl(195 85% 70%)
+    );
+    --gradient-success: linear-gradient(
+      135deg,
+      hsl(145 70% 50%),
+      hsl(155 65% 55%)
+    );
+    --gradient-card: linear-gradient(
+      180deg,
+      hsl(215 28% 12%),
+      hsl(215 28% 14%)
+    );
+
+    --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.3);
+    --shadow-md: 0 4px 12px -2px rgb(0 0 0 / 0.4);
+    --shadow-lg: 0 10px 30px -5px rgb(0 0 0 / 0.5);
+    --shadow-glow: 0 0 40px hsl(195 85% 55% / 0.3);
+  }
 }
 
-body {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
-    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
-    sans-serif;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  min-height: 100vh;
-}
+@layer base {
+  * {
+    @apply border-border;
+  }
 
-code {
-  font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
-    monospace;
-}
-
-.app {
-  min-height: 100vh;
-  padding: 2rem;
-}
-
-.container {
-  max-width: 1200px;
-  margin: 0 auto;
-}
-
-.header {
-  text-align: center;
-  color: white;
-  margin-bottom: 3rem;
-}
-
-.header h1 {
-  font-size: 3rem;
-  margin-bottom: 0.5rem;
-  font-weight: 700;
-}
-
-.header p {
-  font-size: 1.2rem;
-  opacity: 0.9;
-}
-
-.card {
-  background: white;
-  border-radius: 12px;
-  padding: 2rem;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
-  margin-bottom: 2rem;
-}
-
-.form-group {
-  margin-bottom: 1.5rem;
-}
-
-.form-group label {
-  display: block;
-  margin-bottom: 0.5rem;
-  font-weight: 600;
-  color: #333;
-}
-
-.form-group input,
-.form-group textarea {
-  width: 100%;
-  padding: 0.75rem;
-  border: 2px solid #e0e0e0;
-  border-radius: 8px;
-  font-size: 1rem;
-  transition: border-color 0.3s;
-}
-
-.form-group input:focus,
-.form-group textarea:focus {
-  outline: none;
-  border-color: #667eea;
-}
-
-.form-group textarea {
-  resize: vertical;
-  min-height: 100px;
-}
-
-.file-upload-area {
-  border: 2px dashed #667eea;
-  border-radius: 8px;
-  padding: 2rem;
-  text-align: center;
-  cursor: pointer;
-  transition: all 0.3s;
-  background: #f8f9ff;
-}
-
-.file-upload-area:hover {
-  border-color: #764ba2;
-  background: #f0f2ff;
-}
-
-.file-upload-area.drag-over {
-  border-color: #764ba2;
-  background: #e8ebff;
-}
-
-.file-list {
-  list-style: none;
-  margin-top: 1rem;
-}
-
-.file-item {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0.75rem;
-  background: #f5f5f5;
-  border-radius: 6px;
-  margin-bottom: 0.5rem;
-}
-
-.file-item button {
-  background: #ff4444;
-  color: white;
-  border: none;
-  padding: 0.25rem 0.75rem;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 0.875rem;
-}
-
-.file-item button:hover {
-  background: #cc0000;
-}
-
-.button-primary {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
-  border: none;
-  padding: 1rem 2rem;
-  font-size: 1.1rem;
-  font-weight: 600;
-  border-radius: 8px;
-  cursor: pointer;
-  transition: transform 0.2s, box-shadow 0.2s;
-  width: 100%;
-}
-
-.button-primary:hover:not(:disabled) {
-  transform: translateY(-2px);
-  box-shadow: 0 10px 20px rgba(102, 126, 234, 0.4);
-}
-
-.button-primary:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
-.loading-spinner {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 3rem;
-}
-
-.spinner {
-  border: 4px solid #f3f3f3;
-  border-top: 4px solid #667eea;
-  border-radius: 50%;
-  width: 50px;
-  height: 50px;
-  animation: spin 1s linear infinite;
-}
-
-@keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
-}
-
-.loading-text {
-  margin-top: 1rem;
-  color: #666;
-  font-size: 1rem;
-}
-
-.results-section {
-  margin-top: 2rem;
-}
-
-.results-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 1rem;
-  padding-bottom: 1rem;
-  border-bottom: 2px solid #e0e0e0;
-}
-
-.results-header h2 {
-  color: #333;
-  font-size: 1.5rem;
-}
-
-.button-secondary {
-  background: white;
-  color: #667eea;
-  border: 2px solid #667eea;
-  padding: 0.5rem 1rem;
-  border-radius: 6px;
-  cursor: pointer;
-  font-weight: 600;
-  transition: all 0.2s;
-}
-
-.button-secondary:hover {
-  background: #667eea;
-  color: white;
-}
-
-.results-content {
-  background: #f9f9f9;
-  padding: 2rem;
-  border-radius: 8px;
-  line-height: 1.8;
-}
-
-.results-content h1,
-.results-content h2,
-.results-content h3 {
-  color: #333;
-  margin-top: 1.5rem;
-  margin-bottom: 0.75rem;
-}
-
-.results-content p {
-  margin-bottom: 1rem;
-}
-
-.results-content ul,
-.results-content ol {
-  margin-left: 2rem;
-  margin-bottom: 1rem;
-}
-
-.results-content code {
-  background: #e8e8e8;
-  padding: 0.2rem 0.4rem;
-  border-radius: 4px;
-  font-size: 0.9em;
-}
-
-.results-content pre {
-  background: #2d2d2d;
-  color: #f8f8f8;
-  padding: 1rem;
-  border-radius: 6px;
-  overflow-x: auto;
-  margin-bottom: 1rem;
-}
-
-.results-content pre code {
-  background: transparent;
-  padding: 0;
-}
-
-.error-message {
-  background: #fff3f3;
-  border-left: 4px solid #ff4444;
-  padding: 1rem;
-  border-radius: 4px;
-  color: #cc0000;
-  margin-top: 1rem;
-}
-
-.success-message {
-  background: #f0fff4;
-  border-left: 4px solid #48bb78;
-  padding: 1rem;
-  border-radius: 4px;
-  color: #276749;
-  margin-top: 1rem;
-}
-
-/* Math rendering */
-.katex {
-  font-size: 1.1em;
-}
-
-.katex-display {
-  margin: 1rem 0;
+  body {
+    @apply bg-background text-foreground;
+  }
 }

@@ -187,7 +187,7 @@ background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
 ### Change AI Model:
 Edit `/frontend/src/components/ExamForm.jsx` line 7:
 ```javascript
-const [modelName, setModelName] = useState('google/gemini-flash-1.5-8b')
+const [modelName, setModelName] = useState('qwen/qwen3-30b-a3b:free')
 ```
 
 ### Change Port:

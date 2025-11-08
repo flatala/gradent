@@ -150,7 +150,7 @@ async def generate_exam(
             question_description=question_description,
             api_key=final_api_key,
             api_base_url="http://localhost:3000",  # Your Next.js API
-            model_name=model_name or "google/gemini-flash-1.5-8b",
+            model_name=model_name or "qwen/qwen3-30b-a3b:free",
         )
         
         logger.info("Starting exam generation workflow...")
@@ -166,19 +166,35 @@ async def generate_exam(
             except Exception as e:
                 logger.warning(f"Failed to delete {path}: {e}")
         
+        # Handle both dict and object results from workflow
+        if isinstance(result, dict):
+            error = result.get("error")
+            generated_questions = result.get("generated_questions")
+        else:
+            error = getattr(result, "error", None)
+            generated_questions = getattr(result, "generated_questions", None)
+        
         # Check for errors
-        if result.error:
-            logger.error(f"Workflow error: {result.error}")
+        if error:
+            logger.error(f"Workflow error: {error}")
             return ExamResponse(
                 success=False,
-                error=result.error
+                error=error
+            )
+        
+        # Check if questions were generated
+        if not generated_questions:
+            logger.warning("No questions were generated")
+            return ExamResponse(
+                success=False,
+                error="No questions were generated. Please check your input."
             )
         
         # Return success
         logger.info("Exam generation completed successfully")
         return ExamResponse(
             success=True,
-            questions=result.generated_questions,
+            questions=generated_questions,
             uploaded_files=[Path(p).name for p in saved_paths]
         )
         

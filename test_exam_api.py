@@ -2,8 +2,12 @@
 import asyncio
 import os
 from pathlib import Path
+from dotenv import load_dotenv
 
 from workflows.exam_api import exam_api_graph, ExamAPIState
+
+# Load environment variables from .env file
+load_dotenv()
 
 async def test_exam_api_workflow():
     """Test the exam API workflow with sample data."""

@@ -1,10 +1,14 @@
 """Workflow tool to invoke the exam API workflow from the main agent."""
 import os
 from typing import List
+from dotenv import load_dotenv
 
 from langchain_core.tools import tool
 
 from workflows.exam_api import exam_api_graph, ExamAPIState
+
+# Load environment variables from .env file
+load_dotenv()
 
 
 @tool
