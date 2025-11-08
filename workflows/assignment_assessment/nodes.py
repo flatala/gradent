@@ -39,7 +39,7 @@ async def initialize_assessment(
             )
             
             if retrieved_context and retrieved_context != "No relevant context found in course materials.":
-                print(f"✓ Retrieved {len(retrieved_context)} chars of context from vector DB")
+                print(f"[OK] Retrieved {len(retrieved_context)} chars of context from vector DB")
             else:
                 retrieved_context = None
         except Exception as e:
@@ -205,7 +205,7 @@ async def save_to_database(
             db.flush()
             
             record_id = record.id
-            print(f"✓ Saved assessment to database (ID: {record_id}, version: {record.version})")
+            print(f"[OK] Saved assessment to database (ID: {record_id}, version: {record.version})")
             
             return {"assessment_record_id": record_id}
     
