@@ -49,3 +49,8 @@ htmlcov/
 
 # LangGraph
 cache/
+
+# Databases
+data/
+
+poetry.lock
