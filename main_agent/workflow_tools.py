@@ -1,19 +1,28 @@
 """Tools that invoke workflow subgraphs."""
+from __future__ import annotations
 import json
 import logging
 import os
 import time
-from typing import Annotated, List, Optional
+from datetime import datetime
 from time import perf_counter
+from typing import Annotated, List, Optional
 
-from langchain_core.tools import tool, InjectedToolArg
-from langchain_core.runnables import RunnableConfig
 from langchain_core.messages import HumanMessage
+from langchain_core.runnables import RunnableConfig
+from langchain_core.tools import InjectedToolArg, tool
 
+from database.connection import get_db_session
+from database.models import (
+    Suggestion,
+    SuggestionStatus,
+    User,
+)
 from workflows.scheduler import scheduler_graph, SchedulerState
 from workflows.assignment_assessment import assessment_graph, AssessmentState, AssignmentInfo
 from shared.config import Configuration
 from shared.utils import get_text_llm
+from workflows.suggestions import SuggestionsState, Suggestion as WorkflowSuggestion, suggestions_graph
 
 _logger = logging.getLogger("chat")
 
@@ -266,3 +275,169 @@ async def assess_assignment(
             except Exception:
                 pass
         return f"Error assessing assignment: {str(e)}"
+
+
+def _resolve_user_id(user_id: Optional[int]) -> Optional[int]:
+    """Return a valid user id, defaulting to the first user in the DB."""
+    if user_id is not None:
+        return user_id
+    with get_db_session() as db:
+        record = db.query(User.id).order_by(User.id.asc()).first()
+        return record[0] if record else None
+
+
+def _parse_suggested_time(value: Optional[str]) -> Optional[datetime]:
+    """Attempt to parse ISO8601 timestamps; otherwise return None."""
+    if not value:
+        return None
+    try:
+        # Handle basic ISO formats
+        return datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except Exception:
+        return None
+
+
+def _store_suggestions(
+    user_id: int,
+    suggestions: list[WorkflowSuggestion],
+) -> list[dict]:
+    """Persist suggestions in the database and return serializable dicts."""
+    serialized: list[dict] = []
+    discord_enabled = bool(os.getenv("DISCORD_WEBHOOK_URL"))
+    now = datetime.utcnow()
+
+    with get_db_session() as db:
+        for item in suggestions:
+            suggested_dt = _parse_suggested_time(item.suggested_time)
+            existing = (
+                db.query(Suggestion)
+                .filter(
+                    Suggestion.user_id == user_id,
+                    Suggestion.title == item.title,
+                    Suggestion.message == item.message,
+                )
+                .order_by(Suggestion.created_at.desc())
+                .first()
+            )
+
+            channel_config = {
+                "discord": discord_enabled,
+            }
+
+            if existing:
+                existing.category = item.category
+                existing.priority = item.priority
+                existing.suggested_time = suggested_dt
+                existing.suggested_time_text = item.suggested_time
+                existing.linked_assignments = item.linked_assignments
+                existing.linked_events = item.linked_events
+                existing.tags = item.tags
+                existing.sources = item.sources
+                existing.channel_config = channel_config
+                existing.status = SuggestionStatus.PENDING
+                existing.updated_at = now
+                suggestion_row = existing
+            else:
+                suggestion_row = Suggestion(
+                    user_id=user_id,
+                    title=item.title,
+                    message=item.message,
+                    category=item.category,
+                    priority=item.priority,
+                    suggested_time=suggested_dt,
+                    suggested_time_text=item.suggested_time,
+                    linked_assignments=item.linked_assignments,
+                    linked_events=item.linked_events,
+                    tags=item.tags,
+                    sources=item.sources,
+                    channel_config=channel_config,
+                    status=SuggestionStatus.PENDING,
+                    created_at=now,
+                )
+                db.add(suggestion_row)
+                db.flush()
+
+            serialized.append(
+                {
+                    "id": suggestion_row.id,
+                    "user_id": suggestion_row.user_id,
+                    "title": suggestion_row.title,
+                    "message": suggestion_row.message,
+                    "category": suggestion_row.category,
+                    "priority": suggestion_row.priority,
+                    "suggested_time": suggestion_row.suggested_time.isoformat()
+                    if suggestion_row.suggested_time
+                    else None,
+                    "suggested_time_text": suggestion_row.suggested_time_text,
+                    "status": suggestion_row.status.value if suggestion_row.status else None,
+                    "channel_config": suggestion_row.channel_config,
+                    "linked_assignments": suggestion_row.linked_assignments,
+                    "linked_events": suggestion_row.linked_events,
+                    "tags": suggestion_row.tags,
+                    "sources": suggestion_row.sources,
+                }
+            )
+
+    return serialized
+
+
+@tool
+async def generate_suggestions(
+    user_id: Optional[int] = None,
+    *, config: Annotated[RunnableConfig, InjectedToolArg]
+) -> str:
+    """Generate proactive study suggestions from assignments, calendar, and study history.
+
+    Use this tool when the user asks for reminders, priorities, next actions,
+    or when new Brightspace/calendar updates arrive and you want to surface
+    actionable nudges.
+
+    Args:
+        user_id: Target user (defaults to the first user in the database)
+        config: Injected LangChain runnable configuration
+
+    Returns:
+        JSON array of suggestions with category, priority, and references.
+    """
+    cfg = Configuration.from_runnable_config(config)
+    resolved_user_id = _resolve_user_id(user_id)
+    if resolved_user_id is None:
+        return json.dumps({
+            "error": "No user found in database. Populate the DB before requesting suggestions."
+        }, indent=2)
+
+    if _logger:
+        try:
+            _logger.info("TOOL CALL: generate_suggestions | user_id=%s", resolved_user_id)
+        except Exception:
+            pass
+
+    state = SuggestionsState(
+        user_id=resolved_user_id,
+        snapshot_ts=datetime.utcnow(),
+    )
+
+    try:
+        result = await suggestions_graph.ainvoke(state, config)
+    except Exception as exc:  # pragma: no cover - error path
+        if _logger:
+            try:
+                _logger.error("TOOL ERROR: generate_suggestions | error=%s", exc)
+            except Exception:
+                pass
+        return json.dumps({"error": f"Failed to generate suggestions: {exc}"}, indent=2)
+
+    suggestions = result.get("suggestions") or []
+    stored_records = _store_suggestions(resolved_user_id, suggestions)
+    serialized = stored_records if stored_records else [s.model_dump() if hasattr(s, "model_dump") else s for s in suggestions]
+
+    if _logger:
+        try:
+            _logger.info(
+                "TOOL DONE: generate_suggestions | count=%d",
+                len(serialized),
+            )
+        except Exception:
+            pass
+
+    return json.dumps(serialized, indent=2)

@@ -59,3 +59,5 @@ credentials.json
 token.pickle
 # Databases
 data/
+
+poetry.lock

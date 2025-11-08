@@ -94,6 +94,15 @@ class Assignment(Base):
     user_assignments = relationship("UserAssignment", back_populates="assignment", cascade="all, delete-orphan")
 
 
+class SuggestionStatus(str, Enum):
+    """Lifecycle of a proactive suggestion."""
+
+    PENDING = "pending"          # Generated, awaiting delivery
+    NOTIFIED = "notified"        # Sent to one or more channels
+    COMPLETED = "completed"      # User confirmed handled
+    DISMISSED = "dismissed"      # User dismissed / ignored
+
+
 class AssignmentAssessment(Base):
     """AI-generated assessment of an assignment's difficulty, effort, and structure.
     
@@ -130,6 +139,38 @@ class AssignmentAssessment(Base):
 
     # Relationships
     assignment = relationship("Assignment", back_populates="assessments")
+
+
+class Suggestion(Base):
+    """Generated suggestion ready for notification or scheduling."""
+
+    __tablename__ = "suggestions"
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    title = Column(String, nullable=False)
+    message = Column(Text, nullable=False)
+    category = Column(String, nullable=False)
+    priority = Column(String, nullable=True)
+
+    suggested_time = Column(DateTime, nullable=True)
+    suggested_time_text = Column(String, nullable=True)
+
+    linked_assignments = Column(JSON, default=list)
+    linked_events = Column(JSON, default=list)
+    tags = Column(JSON, default=list)
+    sources = Column(JSON, default=list)
+
+    channel_config = Column(JSON, default=dict)
+    status = Column(SQLEnum(SuggestionStatus), default=SuggestionStatus.PENDING, index=True)
+
+    times_notified = Column(Integer, default=0)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    delivered_at = Column(DateTime, nullable=True)
+    last_notified_at = Column(DateTime, nullable=True)
+
+    user = relationship("User")
 
 
 class UserAssignment(Base):
