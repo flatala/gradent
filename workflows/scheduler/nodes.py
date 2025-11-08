@@ -76,29 +76,33 @@ async def initialize_scheduler(
         ),
     ]
 
-    # Provide calendar configuration directly so the LLM includes it in tool calls
-    default_cal_id = os.getenv("GOOGLE_CALENDAR_CALENDAR_ID") or os.getenv("GOOGLE_CALENDAR_DEFAULT_CALENDAR_ID")
-    if default_cal_id:
-        messages.append(
-            SystemMessage(
-                content=(
-                    f"Calendar configuration: calendar_id={default_cal_id}. "
-                    "Always include calendar_id in all calendar tool calls. "
-                    "Do not use or mention 'primary'. Do not ask to confirm calendar."
-                )
-            )
-        )
-
+    # Provide timezone and current date context for interpreting relative dates
+    from datetime import datetime
+    import pytz
+    
     default_tz = os.getenv("GOOGLE_CALENDAR_TIME_ZONE") or os.getenv("TIME_ZONE")
     if default_tz:
-        messages.append(
-            SystemMessage(
-                content=(
-                    f"Calendar timezone: {default_tz}. Interpret relative dates like 'tomorrow' in this timezone and "
-                    "include time_zone when creating events."
+        try:
+            tz = pytz.timezone(default_tz)
+            current_datetime = datetime.now(tz)
+            messages.append(
+                SystemMessage(
+                    content=(
+                        f"Current date and time: {current_datetime.strftime('%Y-%m-%d %H:%M')} ({default_tz}). "
+                        f"Use this as reference when interpreting relative dates like 'tomorrow' or 'next Monday'."
+                    )
                 )
             )
-        )
+        except Exception as e:
+            _logger.warning(f"Failed to get current datetime: {e}")
+            messages.append(
+                SystemMessage(
+                    content=(
+                        f"Current timezone: {default_tz}. "
+                        f"Interpret relative dates like 'tomorrow' or 'next Monday' in this timezone."
+                    )
+                )
+            )
 
     return {"messages": messages}
 

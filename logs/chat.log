@@ -2059,3 +2059,355 @@ Need a reminder or any tweaks (title, time, location)? I can update it.
 - Meeting link: none (since it’s at home)
 
 Need a reminder or any tweaks (title, time, location)? I can update it.
+2025-11-08 20:26:34,264 - INFO - Agent initialized with models - orchestrator=gpt-5, text=gpt-5-nano
+2025-11-08 20:27:27,359 - INFO - USER: Please schedule me a meeting for tuseday at 19:45 called study time. location TU Delft Echo building in Delft, duration 1h 45 min, invite aninmigal31@gmail.com
+2025-11-08 20:27:27,360 - INFO - ROUTE: tools-agent
+2025-11-08 20:27:27,361 - INFO - AGENT INPUT: {"input": "Please schedule me a meeting for tuseday at 19:45 called study time. location TU Delft Echo building in Delft, duration 1h 45 min, invite aninmigal31@gmail.com", "chat_history_len": 0}
+2025-11-08 20:27:54,713 - INFO - TOOL CALL: run_scheduler_workflow | meeting=Study Time | duration=105 | attendees=1
+2025-11-08 20:27:54,717 - INFO - SCHEDULER: Checking calendar authentication...
+2025-11-08 20:27:54,791 - INFO - SCHEDULER: Auth status = {'authenticated': True, 'needs_auth': False, 'message': 'Service account configured successfully'}
+2025-11-08 20:27:54,791 - INFO - SCHEDULER: ✓ Authentication successful
+2025-11-08 20:27:54,791 - INFO - SCHEDULER GRAPH: Routing to initialize (authenticated)
+2025-11-08 20:27:54,792 - INFO - SCHEDULER: Agent node - loading tools...
+2025-11-08 20:27:54,801 - INFO - SCHEDULER TOOLS: Loading calendar tools for the first time...
+2025-11-08 20:27:54,801 - INFO - SCHEDULER TOOLS: Getting calendar API resource...
+2025-11-08 20:27:54,850 - INFO - SCHEDULER TOOLS: ✓ API resource created successfully
+2025-11-08 20:27:54,850 - INFO - SCHEDULER TOOLS: Creating CalendarToolkit...
+2025-11-08 20:27:54,850 - INFO - SCHEDULER TOOLS: Getting tools from toolkit...
+2025-11-08 20:27:54,850 - INFO - SCHEDULER TOOLS: ✓ Loaded 7 tools successfully
+2025-11-08 20:27:54,850 - INFO - SCHEDULER TOOLS:   - create_calendar_event: Use this tool to create an event. The input must include the summary, start, and end datetime for th...
+2025-11-08 20:27:54,850 - INFO - SCHEDULER TOOLS:   - search_events: Use this tool to search events in the calendar....
+2025-11-08 20:27:54,850 - INFO - SCHEDULER TOOLS:   - update_calendar_event: Use this tool to update an event. ...
+2025-11-08 20:27:54,850 - INFO - SCHEDULER TOOLS:   - get_calendars_info: Use this tool to get information about the calendars in Google Calendar....
+2025-11-08 20:27:54,850 - INFO - SCHEDULER TOOLS:   - move_calendar_event: Use this tool to move an event between calendars....
+2025-11-08 20:27:54,850 - INFO - SCHEDULER TOOLS:   - delete_calendar_event: Use this tool to delete an event....
+2025-11-08 20:27:54,850 - INFO - SCHEDULER TOOLS:   - get_current_datetime: Use this tool to get the current datetime according to the calendar timezone.The output datetime for...
+2025-11-08 20:27:54,850 - INFO - SCHEDULER: Loaded 7 calendar tools: ['create_calendar_event', 'search_events', 'update_calendar_event', 'get_calendars_info', 'move_calendar_event', 'delete_calendar_event', 'get_current_datetime']
+2025-11-08 20:27:54,867 - INFO - SCHEDULER: Agent invoking LLM with 3 messages...
+2025-11-08 20:28:37,161 - INFO - SCHEDULER: Agent decided to call 2 tool(s): ['get_current_datetime', 'get_calendars_info']
+2025-11-08 20:28:37,163 - INFO - SCHEDULER GRAPH: Entering tools node...
+2025-11-08 20:28:37,163 - INFO - SCHEDULER TOOLS: Using cached tools (7 tools)
+2025-11-08 20:28:37,163 - INFO - SCHEDULER GRAPH: Injected default parameters into tool calls
+2025-11-08 20:28:37,166 - INFO - SCHEDULER GRAPH: Executing tools...
+2025-11-08 20:28:37,317 - INFO - SCHEDULER GRAPH: Tools executed successfully
+2025-11-08 20:28:37,318 - INFO - SCHEDULER: Agent node - loading tools...
+2025-11-08 20:28:37,335 - INFO - SCHEDULER TOOLS: Using cached tools (7 tools)
+2025-11-08 20:28:37,335 - INFO - SCHEDULER: Loaded 7 calendar tools: ['create_calendar_event', 'search_events', 'update_calendar_event', 'get_calendars_info', 'move_calendar_event', 'delete_calendar_event', 'get_current_datetime']
+2025-11-08 20:28:37,357 - INFO - SCHEDULER: Agent invoking LLM with 6 messages...
+2025-11-08 20:29:02,579 - INFO - SCHEDULER: Agent decided to call 1 tool(s): ['get_current_datetime']
+2025-11-08 20:29:02,581 - INFO - SCHEDULER GRAPH: Entering tools node...
+2025-11-08 20:29:02,581 - INFO - SCHEDULER TOOLS: Using cached tools (7 tools)
+2025-11-08 20:29:02,582 - INFO - SCHEDULER GRAPH: Injected default parameters into tool calls
+2025-11-08 20:29:02,602 - INFO - SCHEDULER GRAPH: Executing tools...
+2025-11-08 20:29:02,671 - INFO - SCHEDULER GRAPH: Tools executed successfully
+2025-11-08 20:29:02,672 - INFO - SCHEDULER: Agent node - loading tools...
+2025-11-08 20:29:02,681 - INFO - SCHEDULER TOOLS: Using cached tools (7 tools)
+2025-11-08 20:29:02,681 - INFO - SCHEDULER: Loaded 7 calendar tools: ['create_calendar_event', 'search_events', 'update_calendar_event', 'get_calendars_info', 'move_calendar_event', 'delete_calendar_event', 'get_current_datetime']
+2025-11-08 20:29:02,695 - INFO - SCHEDULER: Agent invoking LLM with 8 messages...
+2025-11-08 20:29:20,481 - INFO - SCHEDULER: Agent decided to call 1 tool(s): ['get_calendars_info']
+2025-11-08 20:29:20,483 - INFO - SCHEDULER GRAPH: Entering tools node...
+2025-11-08 20:29:20,484 - INFO - SCHEDULER TOOLS: Using cached tools (7 tools)
+2025-11-08 20:29:20,484 - INFO - SCHEDULER GRAPH: Injected default parameters into tool calls
+2025-11-08 20:29:20,493 - INFO - SCHEDULER GRAPH: Executing tools...
+2025-11-08 20:29:20,555 - INFO - SCHEDULER GRAPH: Tools executed successfully
+2025-11-08 20:29:20,556 - INFO - SCHEDULER: Agent node - loading tools...
+2025-11-08 20:29:20,573 - INFO - SCHEDULER TOOLS: Using cached tools (7 tools)
+2025-11-08 20:29:20,573 - INFO - SCHEDULER: Loaded 7 calendar tools: ['create_calendar_event', 'search_events', 'update_calendar_event', 'get_calendars_info', 'move_calendar_event', 'delete_calendar_event', 'get_current_datetime']
+2025-11-08 20:29:20,596 - INFO - SCHEDULER: Agent invoking LLM with 10 messages...
+2025-11-08 20:29:58,155 - INFO - SCHEDULER: Agent decided to call 1 tool(s): ['get_calendars_info']
+2025-11-08 20:29:58,158 - INFO - SCHEDULER GRAPH: Entering tools node...
+2025-11-08 20:29:58,158 - INFO - SCHEDULER TOOLS: Using cached tools (7 tools)
+2025-11-08 20:29:58,158 - INFO - SCHEDULER GRAPH: Injected default parameters into tool calls
+2025-11-08 20:29:58,166 - INFO - SCHEDULER GRAPH: Executing tools...
+2025-11-08 20:29:58,226 - INFO - SCHEDULER GRAPH: Tools executed successfully
+2025-11-08 20:29:58,229 - INFO - SCHEDULER: Agent node - loading tools...
+2025-11-08 20:29:58,239 - INFO - SCHEDULER TOOLS: Using cached tools (7 tools)
+2025-11-08 20:29:58,239 - INFO - SCHEDULER: Loaded 7 calendar tools: ['create_calendar_event', 'search_events', 'update_calendar_event', 'get_calendars_info', 'move_calendar_event', 'delete_calendar_event', 'get_current_datetime']
+2025-11-08 20:29:58,257 - INFO - SCHEDULER: Agent invoking LLM with 12 messages...
+2025-11-08 20:30:00,711 - INFO - SCHEDULER: Agent decided to call 1 tool(s): ['search_events']
+2025-11-08 20:30:00,712 - INFO - SCHEDULER GRAPH: Entering tools node...
+2025-11-08 20:30:00,713 - INFO - SCHEDULER TOOLS: Using cached tools (7 tools)
+2025-11-08 20:30:00,713 - INFO - SCHEDULER GRAPH: Injected default parameters into tool calls
+2025-11-08 20:30:00,715 - INFO - SCHEDULER GRAPH: Executing tools...
+2025-11-08 20:30:00,716 - INFO - SCHEDULER GRAPH: Tools executed successfully
+2025-11-08 20:30:00,716 - INFO - SCHEDULER: Agent node - loading tools...
+2025-11-08 20:30:00,728 - INFO - SCHEDULER TOOLS: Using cached tools (7 tools)
+2025-11-08 20:30:00,728 - INFO - SCHEDULER: Loaded 7 calendar tools: ['create_calendar_event', 'search_events', 'update_calendar_event', 'get_calendars_info', 'move_calendar_event', 'delete_calendar_event', 'get_current_datetime']
+2025-11-08 20:30:00,745 - INFO - SCHEDULER: Agent invoking LLM with 14 messages...
+2025-11-08 20:30:29,217 - INFO - SCHEDULER: Agent decided to call 1 tool(s): ['create_calendar_event']
+2025-11-08 20:30:29,219 - INFO - SCHEDULER GRAPH: Entering tools node...
+2025-11-08 20:30:29,219 - INFO - SCHEDULER TOOLS: Using cached tools (7 tools)
+2025-11-08 20:30:29,219 - INFO - SCHEDULER GRAPH: Injected default parameters into tool calls
+2025-11-08 20:30:29,223 - INFO - SCHEDULER GRAPH: Executing tools...
+2025-11-08 20:30:29,393 - INFO - SCHEDULER GRAPH: Tools executed successfully
+2025-11-08 20:30:29,394 - INFO - SCHEDULER: Agent node - loading tools...
+2025-11-08 20:30:29,408 - INFO - SCHEDULER TOOLS: Using cached tools (7 tools)
+2025-11-08 20:30:29,409 - INFO - SCHEDULER: Loaded 7 calendar tools: ['create_calendar_event', 'search_events', 'update_calendar_event', 'get_calendars_info', 'move_calendar_event', 'delete_calendar_event', 'get_current_datetime']
+2025-11-08 20:30:29,430 - INFO - SCHEDULER: Agent invoking LLM with 16 messages...
+2025-11-08 20:31:02,873 - INFO - SCHEDULER: Agent decided to call 1 tool(s): ['search_events']
+2025-11-08 20:31:02,876 - INFO - SCHEDULER GRAPH: Entering tools node...
+2025-11-08 20:31:02,876 - INFO - SCHEDULER TOOLS: Using cached tools (7 tools)
+2025-11-08 20:31:02,876 - INFO - SCHEDULER GRAPH: Injected default parameters into tool calls
+2025-11-08 20:31:02,882 - INFO - SCHEDULER GRAPH: Executing tools...
+2025-11-08 20:31:02,884 - INFO - SCHEDULER GRAPH: Tools executed successfully
+2025-11-08 20:31:02,885 - INFO - SCHEDULER: Agent node - loading tools...
+2025-11-08 20:31:02,904 - INFO - SCHEDULER TOOLS: Using cached tools (7 tools)
+2025-11-08 20:31:02,904 - INFO - SCHEDULER: Loaded 7 calendar tools: ['create_calendar_event', 'search_events', 'update_calendar_event', 'get_calendars_info', 'move_calendar_event', 'delete_calendar_event', 'get_current_datetime']
+2025-11-08 20:31:02,925 - INFO - SCHEDULER: Agent invoking LLM with 18 messages...
+2025-11-08 20:31:41,822 - INFO - SCHEDULER: Agent decided to call 1 tool(s): ['search_events']
+2025-11-08 20:31:41,824 - INFO - SCHEDULER GRAPH: Entering tools node...
+2025-11-08 20:31:41,824 - INFO - SCHEDULER TOOLS: Using cached tools (7 tools)
+2025-11-08 20:31:41,825 - INFO - SCHEDULER GRAPH: Injected default parameters into tool calls
+2025-11-08 20:31:41,830 - INFO - SCHEDULER GRAPH: Executing tools...
+2025-11-08 20:31:41,831 - INFO - SCHEDULER GRAPH: Tools executed successfully
+2025-11-08 20:31:41,832 - INFO - SCHEDULER: Agent node - loading tools...
+2025-11-08 20:31:41,846 - INFO - SCHEDULER TOOLS: Using cached tools (7 tools)
+2025-11-08 20:31:41,846 - INFO - SCHEDULER: Loaded 7 calendar tools: ['create_calendar_event', 'search_events', 'update_calendar_event', 'get_calendars_info', 'move_calendar_event', 'delete_calendar_event', 'get_current_datetime']
+2025-11-08 20:31:41,866 - INFO - SCHEDULER: Agent invoking LLM with 20 messages...
+2025-11-08 20:32:13,930 - INFO - SCHEDULER: Agent decided to call 1 tool(s): ['search_events']
+2025-11-08 20:32:13,933 - INFO - SCHEDULER GRAPH: Entering tools node...
+2025-11-08 20:32:13,933 - INFO - SCHEDULER TOOLS: Using cached tools (7 tools)
+2025-11-08 20:32:13,934 - INFO - SCHEDULER GRAPH: Injected default parameters into tool calls
+2025-11-08 20:32:13,940 - INFO - SCHEDULER GRAPH: Executing tools...
+2025-11-08 20:32:13,942 - INFO - SCHEDULER GRAPH: Tools executed successfully
+2025-11-08 20:32:13,944 - INFO - SCHEDULER: Agent node - loading tools...
+2025-11-08 20:32:13,962 - INFO - SCHEDULER TOOLS: Using cached tools (7 tools)
+2025-11-08 20:32:13,962 - INFO - SCHEDULER: Loaded 7 calendar tools: ['create_calendar_event', 'search_events', 'update_calendar_event', 'get_calendars_info', 'move_calendar_event', 'delete_calendar_event', 'get_current_datetime']
+2025-11-08 20:32:13,983 - INFO - SCHEDULER: Agent invoking LLM with 22 messages...
+2025-11-08 20:33:01,248 - INFO - SCHEDULER: Agent decided to call 1 tool(s): ['search_events']
+2025-11-08 20:33:01,251 - INFO - SCHEDULER GRAPH: Entering tools node...
+2025-11-08 20:33:01,251 - INFO - SCHEDULER TOOLS: Using cached tools (7 tools)
+2025-11-08 20:33:01,252 - INFO - SCHEDULER GRAPH: Injected default parameters into tool calls
+2025-11-08 20:33:01,258 - INFO - SCHEDULER GRAPH: Executing tools...
+2025-11-08 20:33:01,259 - INFO - SCHEDULER GRAPH: Tools executed successfully
+2025-11-08 20:33:01,261 - INFO - SCHEDULER: Agent node - loading tools...
+2025-11-08 20:33:01,279 - INFO - SCHEDULER TOOLS: Using cached tools (7 tools)
+2025-11-08 20:33:01,279 - INFO - SCHEDULER: Loaded 7 calendar tools: ['create_calendar_event', 'search_events', 'update_calendar_event', 'get_calendars_info', 'move_calendar_event', 'delete_calendar_event', 'get_current_datetime']
+2025-11-08 20:33:01,303 - INFO - SCHEDULER: Agent invoking LLM with 24 messages...
+2025-11-08 20:33:40,775 - INFO - SCHEDULER: Agent decided to call 1 tool(s): ['get_calendars_info']
+2025-11-08 20:33:40,778 - INFO - SCHEDULER GRAPH: Entering tools node...
+2025-11-08 20:33:40,778 - INFO - SCHEDULER TOOLS: Using cached tools (7 tools)
+2025-11-08 20:33:40,779 - INFO - SCHEDULER GRAPH: Injected default parameters into tool calls
+2025-11-08 20:33:40,786 - INFO - SCHEDULER GRAPH: Executing tools...
+2025-11-08 20:33:40,848 - INFO - SCHEDULER GRAPH: Tools executed successfully
+2025-11-08 20:33:40,861 - INFO - SCHEDULER: Agent node - loading tools...
+2025-11-08 20:33:40,871 - INFO - SCHEDULER TOOLS: Using cached tools (7 tools)
+2025-11-08 20:33:40,871 - INFO - SCHEDULER: Loaded 7 calendar tools: ['create_calendar_event', 'search_events', 'update_calendar_event', 'get_calendars_info', 'move_calendar_event', 'delete_calendar_event', 'get_current_datetime']
+2025-11-08 20:33:40,891 - INFO - SCHEDULER: Agent invoking LLM with 26 messages...
+2025-11-08 20:34:07,880 - INFO - SCHEDULER: Agent decided to call 1 tool(s): ['search_events']
+2025-11-08 20:34:07,881 - INFO - TOOL RETRY 1/2 due to error: GraphRecursionError('Recursion limit of 25 reached without hitting a stop condition. You can increase the limit by setting the `recursion_limit` config key.\nFor troubleshooting, visit: https://python.langchain.com/docs/troubleshooting/errors/GRAPH_RECURSION_LIMIT')
+2025-11-08 20:34:09,884 - INFO - SCHEDULER: Checking calendar authentication...
+2025-11-08 20:34:09,948 - INFO - SCHEDULER: Auth status = {'authenticated': True, 'needs_auth': False, 'message': 'Service account configured successfully'}
+2025-11-08 20:34:09,948 - INFO - SCHEDULER: ✓ Authentication successful
+2025-11-08 20:34:09,949 - INFO - SCHEDULER GRAPH: Routing to initialize (authenticated)
+2025-11-08 20:34:09,950 - INFO - SCHEDULER: Agent node - loading tools...
+2025-11-08 20:34:09,958 - INFO - SCHEDULER TOOLS: Using cached tools (7 tools)
+2025-11-08 20:34:09,958 - INFO - SCHEDULER: Loaded 7 calendar tools: ['create_calendar_event', 'search_events', 'update_calendar_event', 'get_calendars_info', 'move_calendar_event', 'delete_calendar_event', 'get_current_datetime']
+2025-11-08 20:34:09,974 - INFO - SCHEDULER: Agent invoking LLM with 3 messages...
+2025-11-08 20:34:47,599 - INFO - SCHEDULER: Agent decided to call 2 tool(s): ['get_current_datetime', 'get_calendars_info']
+2025-11-08 20:34:47,602 - INFO - SCHEDULER GRAPH: Entering tools node...
+2025-11-08 20:34:47,602 - INFO - SCHEDULER TOOLS: Using cached tools (7 tools)
+2025-11-08 20:34:47,602 - INFO - SCHEDULER GRAPH: Injected default parameters into tool calls
+2025-11-08 20:34:47,609 - INFO - SCHEDULER GRAPH: Executing tools...
+2025-11-08 20:34:47,708 - INFO - SCHEDULER GRAPH: Tools executed successfully
+2025-11-08 20:34:47,710 - INFO - SCHEDULER: Agent node - loading tools...
+2025-11-08 20:34:47,745 - INFO - SCHEDULER TOOLS: Using cached tools (7 tools)
+2025-11-08 20:34:47,745 - INFO - SCHEDULER: Loaded 7 calendar tools: ['create_calendar_event', 'search_events', 'update_calendar_event', 'get_calendars_info', 'move_calendar_event', 'delete_calendar_event', 'get_current_datetime']
+2025-11-08 20:34:47,797 - INFO - SCHEDULER: Agent invoking LLM with 6 messages...
+2025-11-08 20:34:58,294 - INFO - SCHEDULER: Agent decided to call 1 tool(s): ['get_current_datetime']
+2025-11-08 20:34:58,296 - INFO - SCHEDULER GRAPH: Entering tools node...
+2025-11-08 20:34:58,297 - INFO - SCHEDULER TOOLS: Using cached tools (7 tools)
+2025-11-08 20:34:58,297 - INFO - SCHEDULER GRAPH: Injected default parameters into tool calls
+2025-11-08 20:34:58,303 - INFO - SCHEDULER GRAPH: Executing tools...
+2025-11-08 20:34:58,390 - INFO - SCHEDULER GRAPH: Tools executed successfully
+2025-11-08 20:34:58,392 - INFO - SCHEDULER: Agent node - loading tools...
+2025-11-08 20:34:58,410 - INFO - SCHEDULER TOOLS: Using cached tools (7 tools)
+2025-11-08 20:34:58,410 - INFO - SCHEDULER: Loaded 7 calendar tools: ['create_calendar_event', 'search_events', 'update_calendar_event', 'get_calendars_info', 'move_calendar_event', 'delete_calendar_event', 'get_current_datetime']
+2025-11-08 20:34:58,431 - INFO - SCHEDULER: Agent invoking LLM with 8 messages...
+2025-11-08 20:35:15,394 - INFO - SCHEDULER: Agent decided to call 1 tool(s): ['get_calendars_info']
+2025-11-08 20:35:15,397 - INFO - SCHEDULER GRAPH: Entering tools node...
+2025-11-08 20:35:15,397 - INFO - SCHEDULER TOOLS: Using cached tools (7 tools)
+2025-11-08 20:35:15,397 - INFO - SCHEDULER GRAPH: Injected default parameters into tool calls
+2025-11-08 20:35:15,403 - INFO - SCHEDULER GRAPH: Executing tools...
+2025-11-08 20:35:15,460 - INFO - SCHEDULER GRAPH: Tools executed successfully
+2025-11-08 20:35:15,462 - INFO - SCHEDULER: Agent node - loading tools...
+2025-11-08 20:35:15,478 - INFO - SCHEDULER TOOLS: Using cached tools (7 tools)
+2025-11-08 20:35:15,478 - INFO - SCHEDULER: Loaded 7 calendar tools: ['create_calendar_event', 'search_events', 'update_calendar_event', 'get_calendars_info', 'move_calendar_event', 'delete_calendar_event', 'get_current_datetime']
+2025-11-08 20:35:15,499 - INFO - SCHEDULER: Agent invoking LLM with 10 messages...
+2025-11-08 20:35:43,949 - INFO - SCHEDULER: Agent decided to call 1 tool(s): ['search_events']
+2025-11-08 20:35:43,952 - INFO - SCHEDULER GRAPH: Entering tools node...
+2025-11-08 20:35:43,952 - INFO - SCHEDULER TOOLS: Using cached tools (7 tools)
+2025-11-08 20:35:43,952 - INFO - SCHEDULER GRAPH: Injected default parameters into tool calls
+2025-11-08 20:35:43,957 - INFO - SCHEDULER GRAPH: Executing tools...
+2025-11-08 20:35:43,958 - INFO - SCHEDULER GRAPH: Tools executed successfully
+2025-11-08 20:35:43,959 - INFO - SCHEDULER: Agent node - loading tools...
+2025-11-08 20:35:43,975 - INFO - SCHEDULER TOOLS: Using cached tools (7 tools)
+2025-11-08 20:35:43,975 - INFO - SCHEDULER: Loaded 7 calendar tools: ['create_calendar_event', 'search_events', 'update_calendar_event', 'get_calendars_info', 'move_calendar_event', 'delete_calendar_event', 'get_current_datetime']
+2025-11-08 20:35:43,995 - INFO - SCHEDULER: Agent invoking LLM with 12 messages...
+2025-11-08 20:35:50,610 - INFO - Agent initialized with models - orchestrator=gpt-5, text=gpt-5-nano
+2025-11-08 20:36:39,550 - INFO - USER: You have access to my Google Calendar.
+2025-11-08 20:36:39,551 - INFO - ROUTE: tools-agent
+2025-11-08 20:36:39,551 - INFO - AGENT INPUT: {"input": "You have access to my Google Calendar.", "chat_history_len": 0}
+2025-11-08 20:36:45,897 - INFO - AGENT OUTPUT: Great—I'm ready to schedule events on your Google Calendar.
+
+Tell me what you’d like to book, and I’ll handle it end-to-end. Helpful details:
+- Title and duration (e.g., “Project kickoff, 45 minutes”)
+- Attendees’ emails (if any)
+- Location (“Google Meet” or a physical address)
+- Timing preferences or constraints (e.g., “next week, mornings only,” “after 2 pm,” “before Nov 20”)
+
+Example: “Schedule a 30-minute 1:1 with sam@example.com on Google Meet, next Tue–Thu afternoons.”
+2025-11-08 20:36:45,898 - INFO - ASSISTANT: Great—I'm ready to schedule events on your Google Calendar.
+
+Tell me what you’d like to book, and I’ll handle it end-to-end. Helpful details:
+- Title and duration (e.g., “Project kickoff, 45 minutes”)
+- Attendees’ emails (if any)
+- Location (“Google Meet” or a physical address)
+- Timing preferences or constraints (e.g., “next week, mornings only,” “after 2 pm,” “before Nov 20”)
+
+Example: “Schedule a 30-minute 1:1 with sam@example.com on Google Meet, next Tue–Thu afternoons.”
+2025-11-08 20:36:45,898 - INFO - USER: Please do the following:
+2025-11-08 20:36:45,898 - INFO - ROUTE: tools-agent
+2025-11-08 20:36:45,899 - INFO - AGENT INPUT: {"input": "Please do the following:", "chat_history_len": 2}
+2025-11-08 20:36:53,528 - INFO - Agent initialized with models - orchestrator=gpt-5, text=gpt-5-nano
+2025-11-08 20:37:09,683 - INFO - USER: Please schedule a meeting tomorow for me called study time - 15:45 - 16:45 at home.
+2025-11-08 20:37:09,684 - INFO - ROUTE: tools-agent
+2025-11-08 20:37:09,684 - INFO - AGENT INPUT: {"input": "Please schedule a meeting tomorow for me called study time - 15:45 - 16:45 at home.", "chat_history_len": 0}
+2025-11-08 20:37:18,838 - INFO - TOOL CALL: run_scheduler_workflow | meeting=Study time | duration=60 | attendees=0
+2025-11-08 20:37:18,840 - INFO - SCHEDULER: Checking calendar authentication...
+2025-11-08 20:37:18,897 - INFO - SCHEDULER: Auth status = {'authenticated': True, 'needs_auth': False, 'message': 'Service account configured successfully'}
+2025-11-08 20:37:18,897 - INFO - SCHEDULER: ✓ Authentication successful
+2025-11-08 20:37:18,898 - INFO - SCHEDULER GRAPH: Routing to initialize (authenticated)
+2025-11-08 20:37:18,899 - INFO - TOOL RETRY 1/2 due to error: ModuleNotFoundError("No module named 'pytz'")
+2025-11-08 20:37:20,905 - INFO - SCHEDULER: Checking calendar authentication...
+2025-11-08 20:37:20,966 - INFO - SCHEDULER: Auth status = {'authenticated': True, 'needs_auth': False, 'message': 'Service account configured successfully'}
+2025-11-08 20:37:20,966 - INFO - SCHEDULER: ✓ Authentication successful
+2025-11-08 20:37:20,967 - INFO - SCHEDULER GRAPH: Routing to initialize (authenticated)
+2025-11-08 20:37:20,968 - INFO - TOOL RETRY 2/2 due to error: ModuleNotFoundError("No module named 'pytz'")
+2025-11-08 20:37:20,968 - INFO - TOOL DONE: run_scheduler_workflow | status=failed | duration=2.13s
+2025-11-08 20:37:31,193 - INFO - TOOL CALL: run_scheduler_workflow | meeting=Study time | duration=60 | attendees=0
+2025-11-08 20:37:31,195 - INFO - SCHEDULER: Checking calendar authentication...
+2025-11-08 20:37:31,275 - INFO - SCHEDULER: Auth status = {'authenticated': True, 'needs_auth': False, 'message': 'Service account configured successfully'}
+2025-11-08 20:37:31,275 - INFO - SCHEDULER: ✓ Authentication successful
+2025-11-08 20:37:31,276 - INFO - SCHEDULER GRAPH: Routing to initialize (authenticated)
+2025-11-08 20:37:31,277 - INFO - TOOL RETRY 1/2 due to error: ModuleNotFoundError("No module named 'pytz'")
+2025-11-08 20:37:33,286 - INFO - SCHEDULER: Checking calendar authentication...
+2025-11-08 20:37:33,366 - INFO - SCHEDULER: Auth status = {'authenticated': True, 'needs_auth': False, 'message': 'Service account configured successfully'}
+2025-11-08 20:37:33,367 - INFO - SCHEDULER: ✓ Authentication successful
+2025-11-08 20:37:33,367 - INFO - SCHEDULER GRAPH: Routing to initialize (authenticated)
+2025-11-08 20:37:33,368 - INFO - TOOL RETRY 2/2 due to error: ModuleNotFoundError("No module named 'pytz'")
+2025-11-08 20:37:33,368 - INFO - TOOL DONE: run_scheduler_workflow | status=failed | duration=2.17s
+2025-11-08 20:38:01,755 - INFO - AGENT OUTPUT: I ran into a temporary issue booking it automatically. In the meantime, you can add it to your calendar with this quick-add link:
+
+https://calendar.google.com/calendar/render?action=TEMPLATE&text=Study%20time&dates=20251109T154500/20251109T164500&details=Personal%20study%20session&location=Home
+
+Details:
+- Title: Study time
+- When: Sunday, Nov 9, 2025, 15:45–16:45 (your local time)
+- Location: Home
+
+Would you like me to retry booking it directly once the scheduling service is back?
+2025-11-08 20:38:01,756 - INFO - ASSISTANT: I ran into a temporary issue booking it automatically. In the meantime, you can add it to your calendar with this quick-add link:
+
+https://calendar.google.com/calendar/render?action=TEMPLATE&text=Study%20time&dates=20251109T154500/20251109T164500&details=Personal%20study%20session&location=Home
+
+Details:
+- Title: Study time
+- When: Sunday, Nov 9, 2025, 15:45–16:45 (your local time)
+- Location: Home
+
+Would you like me to retry booking it directly once the scheduling service is back?
+2025-11-08 20:38:29,999 - INFO - USER: try again
+2025-11-08 20:38:30,000 - INFO - ROUTE: tools-agent
+2025-11-08 20:38:30,000 - INFO - AGENT INPUT: {"input": "try again", "chat_history_len": 2}
+2025-11-08 20:38:37,614 - INFO - TOOL CALL: run_scheduler_workflow | meeting=Study time | duration=60 | attendees=0
+2025-11-08 20:38:37,617 - INFO - SCHEDULER: Checking calendar authentication...
+2025-11-08 20:38:37,692 - INFO - SCHEDULER: Auth status = {'authenticated': True, 'needs_auth': False, 'message': 'Service account configured successfully'}
+2025-11-08 20:38:37,692 - INFO - SCHEDULER: ✓ Authentication successful
+2025-11-08 20:38:37,693 - INFO - SCHEDULER GRAPH: Routing to initialize (authenticated)
+2025-11-08 20:38:37,694 - INFO - TOOL RETRY 1/2 due to error: ModuleNotFoundError("No module named 'pytz'")
+2025-11-08 20:38:39,703 - INFO - SCHEDULER: Checking calendar authentication...
+2025-11-08 20:38:39,773 - INFO - SCHEDULER: Auth status = {'authenticated': True, 'needs_auth': False, 'message': 'Service account configured successfully'}
+2025-11-08 20:38:39,773 - INFO - SCHEDULER: ✓ Authentication successful
+2025-11-08 20:38:39,774 - INFO - SCHEDULER GRAPH: Routing to initialize (authenticated)
+2025-11-08 20:38:39,774 - INFO - TOOL RETRY 2/2 due to error: ModuleNotFoundError("No module named 'pytz'")
+2025-11-08 20:38:39,774 - INFO - TOOL DONE: run_scheduler_workflow | status=failed | duration=2.16s
+2025-11-08 20:38:58,787 - INFO - AGENT OUTPUT: I’m sorry—the scheduling service hit a backend error and couldn’t book it automatically just now.
+
+You can add it instantly with this link:
+https://calendar.google.com/calendar/render?action=TEMPLATE&text=Study%20time&dates=20251109T154500/20251109T164500&details=Personal%20study%20session&location=Home
+
+Event details:
+- Title: Study time
+- When: Tomorrow, Sun Nov 9, 2025, 15:45–16:45 (your local time)
+- Location: Home
+
+Would you like me to keep retrying in the background and confirm once it’s booked?
+2025-11-08 20:38:58,787 - INFO - ASSISTANT: I’m sorry—the scheduling service hit a backend error and couldn’t book it automatically just now.
+
+You can add it instantly with this link:
+https://calendar.google.com/calendar/render?action=TEMPLATE&text=Study%20time&dates=20251109T154500/20251109T164500&details=Personal%20study%20session&location=Home
+
+Event details:
+- Title: Study time
+- When: Tomorrow, Sun Nov 9, 2025, 15:45–16:45 (your local time)
+- Location: Home
+
+Would you like me to keep retrying in the background and confirm once it’s booked?
+2025-11-08 20:40:10,735 - INFO - Agent initialized with models - orchestrator=gpt-5, text=gpt-5-nano
+2025-11-08 20:40:44,544 - INFO - USER: Schedule a meeting for tommorow titled stuy time. Find any time during the day, duration should be 30 min. Location at home, just me in the meeting.
+2025-11-08 20:40:44,544 - INFO - ROUTE: tools-agent
+2025-11-08 20:40:44,545 - INFO - AGENT INPUT: {"input": "Schedule a meeting for tommorow titled stuy time. Find any time during the day, duration should be 30 min. Location at home, just me in the meeting.", "chat_history_len": 0}
+2025-11-08 20:40:53,214 - INFO - TOOL CALL: run_scheduler_workflow | meeting=stuy time | duration=30 | attendees=0
+2025-11-08 20:40:53,216 - INFO - SCHEDULER: Checking calendar authentication...
+2025-11-08 20:40:53,286 - INFO - SCHEDULER: Auth status = {'authenticated': True, 'needs_auth': False, 'message': 'Service account configured successfully'}
+2025-11-08 20:40:53,286 - INFO - SCHEDULER: ✓ Authentication successful
+2025-11-08 20:40:53,287 - INFO - SCHEDULER GRAPH: Routing to initialize (authenticated)
+2025-11-08 20:40:53,310 - INFO - SCHEDULER: Agent node - loading tools...
+2025-11-08 20:40:53,319 - INFO - SCHEDULER TOOLS: Loading calendar tools for the first time...
+2025-11-08 20:40:53,319 - INFO - SCHEDULER TOOLS: Getting calendar API resource...
+2025-11-08 20:40:53,367 - INFO - SCHEDULER TOOLS: ✓ API resource created successfully
+2025-11-08 20:40:53,367 - INFO - SCHEDULER TOOLS: Creating CalendarToolkit...
+2025-11-08 20:40:53,367 - INFO - SCHEDULER TOOLS: Getting tools from toolkit...
+2025-11-08 20:40:53,367 - INFO - SCHEDULER TOOLS: ✓ Loaded 7 tools successfully
+2025-11-08 20:40:53,367 - INFO - SCHEDULER TOOLS:   - create_calendar_event: Use this tool to create an event. The input must include the summary, start, and end datetime for th...
+2025-11-08 20:40:53,367 - INFO - SCHEDULER TOOLS:   - search_events: Use this tool to search events in the calendar....
+2025-11-08 20:40:53,367 - INFO - SCHEDULER TOOLS:   - update_calendar_event: Use this tool to update an event. ...
+2025-11-08 20:40:53,367 - INFO - SCHEDULER TOOLS:   - get_calendars_info: Use this tool to get information about the calendars in Google Calendar....
+2025-11-08 20:40:53,367 - INFO - SCHEDULER TOOLS:   - move_calendar_event: Use this tool to move an event between calendars....
+2025-11-08 20:40:53,367 - INFO - SCHEDULER TOOLS:   - delete_calendar_event: Use this tool to delete an event....
+2025-11-08 20:40:53,367 - INFO - SCHEDULER TOOLS:   - get_current_datetime: Use this tool to get the current datetime according to the calendar timezone.The output datetime for...
+2025-11-08 20:40:53,367 - INFO - SCHEDULER: Loaded 7 calendar tools: ['create_calendar_event', 'search_events', 'update_calendar_event', 'get_calendars_info', 'move_calendar_event', 'delete_calendar_event', 'get_current_datetime']
+2025-11-08 20:40:53,387 - INFO - SCHEDULER: Agent invoking LLM with 3 messages...
+2025-11-08 20:41:18,379 - INFO - SCHEDULER: Agent decided to call 1 tool(s): ['create_calendar_event']
+2025-11-08 20:41:18,380 - INFO - SCHEDULER GRAPH: Entering tools node...
+2025-11-08 20:41:18,380 - INFO - SCHEDULER TOOLS: Using cached tools (7 tools)
+2025-11-08 20:41:18,380 - INFO - SCHEDULER GRAPH: Injected default parameters into tool calls
+2025-11-08 20:41:18,383 - INFO - SCHEDULER GRAPH: Executing tools...
+2025-11-08 20:41:19,017 - INFO - SCHEDULER GRAPH: Tools executed successfully
+2025-11-08 20:41:19,018 - INFO - SCHEDULER: Agent node - loading tools...
+2025-11-08 20:41:19,034 - INFO - SCHEDULER TOOLS: Using cached tools (7 tools)
+2025-11-08 20:41:19,034 - INFO - SCHEDULER: Loaded 7 calendar tools: ['create_calendar_event', 'search_events', 'update_calendar_event', 'get_calendars_info', 'move_calendar_event', 'delete_calendar_event', 'get_current_datetime']
+2025-11-08 20:41:19,054 - INFO - SCHEDULER: Agent invoking LLM with 5 messages...
+2025-11-08 20:41:22,587 - INFO - SCHEDULER: Agent did not call any tools
+2025-11-08 20:41:22,589 - INFO - SCHEDULER: Finalizing scheduling process...
+2025-11-08 20:41:22,589 - INFO - SCHEDULER: Total messages in history: 6
+2025-11-08 20:41:22,611 - INFO - TOOL DONE: run_scheduler_workflow | status=success | duration=29.40s | event_id=unknown
+2025-11-08 20:41:33,863 - INFO - AGENT OUTPUT: All set! I’ve scheduled “stuy time” for tomorrow.
+
+- Duration: 30 minutes
+- Location: Home
+- Attendees: just you
+- Calendar event: https://www.google.com/calendar/event?eid=NnIydjkzaWduNjE0NHNsM3I3bjk3cmw0dXMgNGYxYzkxZjQ2NDg5YmY1NzJlM2NkODNhYTBhMDQ3YTIwYTkyNTkyYjIxYzk5NDhlNjc0M2NhNjg2ZDQzMDYwYUBn
+- Meeting link: none (since it’s at home)
+
+If you’d like me to adjust the time or add a reminder, just say the word.
+2025-11-08 20:41:33,863 - INFO - ASSISTANT: All set! I’ve scheduled “stuy time” for tomorrow.
+
+- Duration: 30 minutes
+- Location: Home
+- Attendees: just you
+- Calendar event: https://www.google.com/calendar/event?eid=NnIydjkzaWduNjE0NHNsM3I3bjk3cmw0dXMgNGYxYzkxZjQ2NDg5YmY1NzJlM2NkODNhYTBhMDQ3YTIwYTkyNTkyYjIxYzk5NDhlNjc0M2NhNjg2ZDQzMDYwYUBn
+- Meeting link: none (since it’s at home)
+
+If you’d like me to adjust the time or add a reminder, just say the word.
