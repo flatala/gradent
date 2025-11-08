@@ -49,3 +49,6 @@ htmlcov/
 
 # LangGraph
 cache/
+
+# Databases
+data/
