@@ -1,14 +1,20 @@
 """Tools that invoke workflow subgraphs."""
 import json
 import logging
+import os
+import time
 from typing import Annotated
 from time import perf_counter
 
 from langchain_core.tools import tool, InjectedToolArg
 from langchain_core.runnables import RunnableConfig
+from langchain_core.messages import HumanMessage
+
 from workflows.planning import planning_graph, PlanningState
+from workflows.planning import prompts
 from workflows.assignment_assessment import assessment_graph, AssessmentState, AssignmentInfo
 from shared.config import Configuration
+from shared.utils import get_text_llm
 
 _logger = logging.getLogger("chat")
 
@@ -47,7 +53,27 @@ async def run_planning_workflow(
 
     # Create initial state (no human-in-the-loop interrupts)
     initial_state = PlanningState(query=query)
-    result = await planning_graph.ainvoke(initial_state, config)
+
+    # Simple retry loop to handle transient backend errors (e.g., 503)
+    max_attempts = int(os.getenv("PLANNING_RETRIES", "2"))
+    backoff = float(os.getenv("PLANNING_BACKOFF", "2.0"))
+    last_exc: Exception | None = None
+    result = None
+    for attempt in range(1, max_attempts + 1):
+        try:
+            result = await planning_graph.ainvoke(initial_state, config)
+            break
+        except Exception as e:
+            last_exc = e
+            if _logger:
+                try:
+                    _logger.info("TOOL RETRY %d/%d due to error: %r", attempt, max_attempts, e)
+                except Exception:
+                    pass
+            if attempt < max_attempts:
+                time.sleep(backoff)
+            else:
+                result = None
 
     # Workflow completed successfully
     if result.get("plan"):
@@ -68,15 +94,17 @@ async def run_planning_workflow(
             "considerations": plan.considerations,
         }, indent=2)
 
-        # If we get here, something unexpected happened
+    # If we get here, something unexpected happened
     if _logger:
         try:
             _logger.info(
-                "TOOL DONE: run_planning_workflow | status=no_plan | duration=%.2fs",
+                "TOOL DONE: run_planning_workflow | status=error | duration=%.2fs",
                 perf_counter() - start,
             )
         except Exception:
             pass
+    if last_exc:
+        return f"Planning failed due to backend error: {last_exc}"
     return "Planning workflow completed but no plan was generated."
 
 

@@ -12,26 +12,9 @@ from langchain_core.tools import BaseTool
 from shared.config import Configuration
 from shared.utils import get_orchestrator_llm
 from .workflow_tools import run_planning_workflow, assess_assignment
+from .prompts import SYSTEM_PROMPT
 
-
-SYSTEM_PROMPT = """You are a helpful AI assistant with access to a planning workflow.
-
-Core behavior:
-- For greetings or general chit-chat: respond briefly, friendly, and neutrally. Do not mention tools or workflows unless the user asks for planning or a tool-assisted action.
-- Use tools only when they are genuinely needed to fulfill the request; otherwise, respond directly without calling tools.
-
-Planning workflow:
-- Available tool: run_planning_workflow — creates detailed plans, can research with web search, and ask for clarification.
-- Invoke the planning workflow only when the user explicitly asks to plan, outline, roadmap, break down steps, schedule, or research a plan.
-
-Interaction rules:
-- If the workflow asks for input (you’ll see WORKFLOW_NEEDS_INPUT), pass that question to the user and incorporate the user’s answer.
-- Keep responses concise and helpful; avoid boilerplate about your capabilities unless asked.
-"""
-
-PLAIN_CHAT_SYSTEM = (
-    "You are a helpful, concise assistant. Answer directly and clearly."
-)
+_logger = logging.getLogger("chat")
 
 
 def _coerce_text(message: AIMessage) -> str:
@@ -65,9 +48,6 @@ def _coerce_text(message: AIMessage) -> str:
         if texts:
             return "\n".join(texts)
     return ""
-
-
-_logger = logging.getLogger("chat")
 
 def enable_chat_logging(level: int = logging.INFO, to_console: bool = True, to_file: bool = True) -> None:
     """Enable chat logging on demand.
