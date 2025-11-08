@@ -6,9 +6,12 @@ import sys
 from pathlib import Path
 
 # Add parent directory to path for imports
-sys.path.insert(0, str(Path(__file__).parent))
+ROOT_DIR = Path(__file__).parent
+if str(ROOT_DIR) not in sys.path:
+    sys.path.insert(0, str(ROOT_DIR))
 
 from database import mock_data
+from setup_mock_suggestions import populate_suggestions
 
 
 if __name__ == "__main__":
@@ -18,5 +21,6 @@ if __name__ == "__main__":
     if response.lower() == 'y':
         mock_data.clear_all_data()
         mock_data.populate_mock_data()
+        populate_suggestions(user_id=1)
     else:
         print("Cancelled.")

@@ -11,7 +11,7 @@ from langchain_core.tools import BaseTool
 
 from shared.config import Configuration
 from shared.utils import get_orchestrator_llm
-from .workflow_tools import run_planning_workflow, assess_assignment
+from .workflow_tools import assess_assignment, generate_suggestions, run_planning_workflow
 from .prompts import SYSTEM_PROMPT
 
 _logger = logging.getLogger("chat")
@@ -102,6 +102,7 @@ def create_main_agent(config: Configuration) -> AgentExecutor:
     tools: List[BaseTool] = [
         run_planning_workflow,
         assess_assignment,
+        generate_suggestions,
     ]
 
     # Create prompt template
