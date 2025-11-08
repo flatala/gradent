@@ -140,11 +140,12 @@ class MainAgent:
         self.chat_history = []
         _logger.info("Agent initialized with models - orchestrator=%s, text=%s", config.orchestrator_model, config.text_model)
 
-    async def chat(self, user_message: str) -> str:
+    async def chat(self, user_message: str, *, config: dict | None = None) -> str:
         """Send a message to the agent and get a response.
 
         Args:
             user_message: The user's message
+            config: Optional LangChain runnable configuration (callbacks, tags, etc.)
 
         Returns:
             The agent's response
@@ -153,10 +154,14 @@ class MainAgent:
         _logger.info("USER: %s", _safe_preview(user_message))
         _logger.info("ROUTE: tools-agent")
         _logger.info("AGENT INPUT: %s", json.dumps({"input": user_message, "chat_history_len": len(self.chat_history)}))
-        result = await self.agent.ainvoke({
-            "input": user_message,
-            "chat_history": self.chat_history,
-        })
+        invoke_config = config or {}
+        result = await self.agent.ainvoke(
+            {
+                "input": user_message,
+                "chat_history": self.chat_history,
+            },
+            config=invoke_config,
+        )
         response = result.get("output", "")
         _logger.info("AGENT OUTPUT: %s", _safe_preview(response))
 
