@@ -1,7 +1,11 @@
-"""Google Calendar API with Service Account - NO OAuth needed!"""
+"""Google Calendar API with OAuth for personal use."""
 import os
 import json
-from google.oauth2 import service_account
+import pickle
+from pathlib import Path
+from google.auth.transport.requests import Request
+from google.oauth2.credentials import Credentials
+from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 
 # Scopes required for calendar operations
@@ -10,99 +14,96 @@ SCOPES = [
     'https://www.googleapis.com/auth/calendar.events',
 ]
 
+# Token storage path (in project root)
+TOKEN_PATH = Path(__file__).parent.parent / 'token.pickle'
+CREDENTIALS_PATH = Path(__file__).parent.parent / 'credentials.json'
+
 
 def get_calendar_api_resource():
-    """Get Google Calendar API resource using Service Account.
+    """Get Google Calendar API resource using OAuth.
 
-    This is MUCH simpler than OAuth:
-    - No browser authorization
-    - No token.pickle
-    - Just environment variables
+    This uses OAuth 2.0 for personal calendar access:
+    - First time: Opens browser for authorization
+    - Subsequent times: Uses saved token from token.pickle
+    - Token auto-refreshes when expired
 
     Returns:
         Google Calendar API service object
 
     Raises:
-        ValueError: If service account credentials are not configured
+        ValueError: If credentials.json is not found
     """
-    client_email = os.getenv('GOOGLE_CALENDAR_CLIENT_EMAIL')
-    private_key = os.getenv('GOOGLE_CALENDAR_PRIVATE_KEY')
+    creds = None
 
-    if not client_email or not private_key:
-        raise ValueError(
-            "Service account credentials not configured!\n\n"
-            "Please set in .env:\n"
-            "  GOOGLE_CALENDAR_CLIENT_EMAIL=your-service-account@project.iam.gserviceaccount.com\n"
-            "  GOOGLE_CALENDAR_PRIVATE_KEY=\"-----BEGIN PRIVATE KEY-----\\n...\\n-----END PRIVATE KEY-----\\n\"\n\n"
-            "See SERVICE_ACCOUNT_SETUP.md for 5-minute setup guide."
-        )
+    # Check if we have a saved token
+    if TOKEN_PATH.exists():
+        with open(TOKEN_PATH, 'rb') as token:
+            creds = pickle.load(token)
 
-    # Handle escaped newlines in private key
-    if client_email == "your-service-account@your-project.iam.gserviceaccount.com":
-        raise ValueError(
-            "Please replace placeholder service account credentials in .env\n"
-            "See SERVICE_ACCOUNT_SETUP.md for setup instructions."
-        )
+    # If no valid credentials, get new ones
+    if not creds or not creds.valid:
+        if creds and creds.expired and creds.refresh_token:
+            # Refresh expired token
+            creds.refresh(Request())
+        else:
+            # Need to do full OAuth flow
+            if not CREDENTIALS_PATH.exists():
+                raise ValueError(
+                    f"OAuth credentials not found!\n\n"
+                    f"Please download credentials.json from Google Cloud Console:\n"
+                    f"1. Go to https://console.cloud.google.com/apis/credentials\n"
+                    f"2. Create OAuth 2.0 Client ID (Desktop app)\n"
+                    f"3. Download JSON and save as: {CREDENTIALS_PATH}\n\n"
+                    f"See README for detailed setup instructions."
+                )
 
-    # Replace literal \n with actual newlines
-    private_key = private_key.replace('\\n', '\n')
+            flow = InstalledAppFlow.from_client_secrets_file(
+                str(CREDENTIALS_PATH), SCOPES
+            )
+            # Run local server for OAuth callback
+            creds = flow.run_local_server(port=0)
 
-    # Create credentials from service account info
-    credentials_info = {
-        "type": "service_account",
-        "client_email": client_email,
-        "private_key": private_key,
-        "token_uri": "https://oauth2.googleapis.com/token",
-    }
+        # Save the credentials for next time
+        with open(TOKEN_PATH, 'wb') as token:
+            pickle.dump(creds, token)
 
-    credentials = service_account.Credentials.from_service_account_info(
-        credentials_info,
-        scopes=SCOPES
-    )
-
-    return build('calendar', 'v3', credentials=credentials)
+    return build('calendar', 'v3', credentials=creds)
 
 
 def check_auth_status() -> dict:
-    """Check if service account is configured.
+    """Check if OAuth is configured and valid.
+
+    If not authenticated, this will trigger the OAuth flow (browser will open).
 
     Returns:
         dict with:
         - authenticated: bool
-        - needs_auth: bool
+        - needs_auth: bool (always False after this function succeeds)
         - message: str
     """
     try:
-        client_email = os.getenv('GOOGLE_CALENDAR_CLIENT_EMAIL')
-        private_key = os.getenv('GOOGLE_CALENDAR_PRIVATE_KEY')
-
-        if not client_email or not private_key:
+        # Check if credentials.json exists
+        if not CREDENTIALS_PATH.exists():
             return {
                 "authenticated": False,
                 "needs_auth": True,
-                "message": "Service account credentials not set in .env. See SERVICE_ACCOUNT_SETUP.md",
+                "message": f"credentials.json not found at {CREDENTIALS_PATH}. Download from Google Cloud Console. See OAUTH_SETUP.md",
             }
 
-        if client_email == "your-service-account@your-project.iam.gserviceaccount.com":
-            return {
-                "authenticated": False,
-                "needs_auth": True,
-                "message": "Please replace placeholder credentials in .env with real service account credentials.",
-            }
-
-        # Try to build the service to verify credentials
+        # Try to get the API resource - this will trigger OAuth flow if needed
+        # This ensures we're actually authenticated, not just checking if a token exists
         try:
             get_calendar_api_resource()
             return {
                 "authenticated": True,
                 "needs_auth": False,
-                "message": "Service account configured successfully",
+                "message": "OAuth configured successfully",
             }
         except Exception as e:
             return {
                 "authenticated": False,
                 "needs_auth": True,
-                "message": f"Service account credentials invalid: {str(e)}",
+                "message": f"Authentication failed: {str(e)}",
             }
 
     except Exception as e:

@@ -18,6 +18,8 @@ pydantic = "^2.0.0"
 langchain-tavily = "^0.1.0"
 langchain-google-community = "^2.0.0"
 pytz = "^2024.1"
+google-auth-oauthlib = "^1.2.0"
+google-auth-httplib2 = "^0.2.0"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.0.0"
