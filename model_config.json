@@ -1,4 +1,4 @@
 {
-  "orchestrator_model": "gpt-5-nano",
+  "orchestrator_model": "gpt-5",
   "text_model": "gpt-5-nano"
 }
