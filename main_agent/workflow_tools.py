@@ -93,8 +93,7 @@ async def run_planning_workflow(
             "considerations": plan.considerations,
         }, indent=2)
 
-        # If we get here, something unexpected happened
-    # No fallback path: surface a clear error
+    # If we get here, something unexpected happened
     if _logger:
         try:
             _logger.info(
