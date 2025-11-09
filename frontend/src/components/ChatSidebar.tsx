@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Send, Bot } from "lucide-react";
+import { Send, Bot, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -11,6 +11,11 @@ import {
 } from "@/components/ui/sidebar";
 import { api } from "@/lib/api";
 import { useWorkflow } from "@/contexts/WorkflowContext";
+import { toast } from "sonner";
+import ReactMarkdown from "react-markdown";
+import remarkMath from "remark-math";
+import rehypeKatex from "rehype-katex";
+import "katex/dist/katex.min.css";
 
 type Message = { role: "user" | "assistant"; content: string };
 
@@ -26,8 +31,8 @@ export function ChatSidebar() {
   useEffect(() => {
     let mounted = true;
     
-    // Clear any previous tool calls when component mounts
-    clearToolCalls();
+    // DON'T clear tool calls on mount - they're now persisted in localStorage
+    // clearToolCalls();
 
     const bootstrap = async () => {
       try {
@@ -70,7 +75,7 @@ export function ChatSidebar() {
     setMessage("");
     setError(null);
 
-    const optimisticHistory = [...messages, { role: "user", content: userText }];
+    const optimisticHistory: Message[] = [...messages, { role: "user" as const, content: userText }];
     setMessages(optimisticHistory);
     setLoading(true);
 
@@ -82,26 +87,54 @@ export function ChatSidebar() {
       setMessages(response.history);
       
       // ONLY process tool calls if the backend actually returned some
-      console.log("Backend response tool_calls:", response.tool_calls);
+      console.log("=== BACKEND RESPONSE ===");
+      console.log("Full response:", response);
+      console.log("Tool calls:", response.tool_calls);
+      console.log("Tool calls type:", typeof response.tool_calls);
+      console.log("Tool calls is array:", Array.isArray(response.tool_calls));
       
       if (response.tool_calls && Array.isArray(response.tool_calls) && response.tool_calls.length > 0) {
         console.log(`Processing ${response.tool_calls.length} tool calls from backend`);
         
         response.tool_calls.forEach((toolCall, index) => {
-          console.log(`Tool call ${index + 1}:`, toolCall);
+          console.log(`\n=== Tool Call ${index + 1} ===`);
+          console.log("Full tool call object:", toolCall);
+          console.log("Tool name:", toolCall.tool_name);
+          console.log("Tool type:", toolCall.tool_type);
+          console.log("Status:", toolCall.status);
+          console.log("Result:", toolCall.result);
+          console.log("Result type:", typeof toolCall.result);
           
           const toolCallId = addToolCall({
             type: toolCall.tool_type,
             status: toolCall.status === "started" ? "in_progress" : toolCall.status,
             title: toolCall.tool_name,
             description: toolCall.status === "started" ? "Processing..." : undefined,
+            result: toolCall.result, // Pass result immediately
           });
+          
+          // Show toast notification when tool starts
+          if (toolCall.status === "started") {
+            toast.loading(toolCall.tool_name, {
+              description: "Agent is working on this task...",
+              id: toolCallId,
+            });
+          }
           
           // If tool is completed or failed, update immediately
           if (toolCall.status === "completed" && toolCall.result) {
+            console.log("Tool result:", toolCall.result);
             completeToolCall(toolCallId, toolCall.result);
+            toast.success(toolCall.tool_name, {
+              description: "Task completed successfully!",
+              id: toolCallId,
+            });
           } else if (toolCall.status === "failed" && toolCall.error) {
             failToolCall(toolCallId, toolCall.error);
+            toast.error(toolCall.tool_name, {
+              description: toolCall.error,
+              id: toolCallId,
+            });
           }
         });
       } else {
@@ -112,7 +145,7 @@ export function ChatSidebar() {
       const fallback = (err as Error).message ?? "Failed to reach the assistant.";
       setMessages([
         ...optimisticHistory,
-        { role: "assistant", content: fallback },
+        { role: "assistant" as const, content: fallback },
       ]);
       setError(fallback);
     } finally {
@@ -149,14 +182,92 @@ export function ChatSidebar() {
               <div
                 className={`max-w-[85%] p-3 rounded-lg ${
                   msg.role === "user"
-                    ? "bg-primary text-primary-foreground"
+                    ? "bg-primary"
                     : "bg-muted text-foreground"
                 }`}
+                style={msg.role === "user" ? { color: "#ffffff" } : {}}
               >
-                <p className="text-sm leading-relaxed">{msg.content}</p>
+                <div className={`prose prose-sm max-w-none prose-p:leading-relaxed prose-pre:p-0 overflow-hidden ${
+                  msg.role === "user" 
+                    ? "prose-invert [&_*]:text-white" 
+                    : "dark:prose-invert"
+                }`}
+                style={msg.role === "user" ? { color: "#ffffff" } : {}}
+                >
+                  <ReactMarkdown
+                    remarkPlugins={[remarkMath]}
+                    rehypePlugins={[rehypeKatex]}
+                    components={{
+                      // Custom link rendering with truncation
+                      a: ({ node, href, children, ...props }) => {
+                        const url = href || '';
+                        let displayText = children;
+                        
+                        // ALWAYS truncate long URLs aggressively
+                        if (typeof children === 'string') {
+                          const textContent = String(children);
+                          // If it's a URL (starts with http), truncate it
+                          if (textContent.startsWith('http://') || textContent.startsWith('https://')) {
+                            try {
+                              const urlObj = new URL(textContent);
+                              const domain = urlObj.hostname.replace('www.', '');
+                              
+                              // For Google Meet links
+                              if (domain.includes('meet.google.com')) {
+                                displayText = '🎥 Join Meet';
+                              } 
+                              // For Google Calendar links
+                              else if (domain.includes('google.com') && textContent.includes('calendar')) {
+                                displayText = '📅 View Calendar';
+                              }
+                              // For other URLs
+                              else {
+                                displayText = `🔗 ${domain}`;
+                              }
+                            } catch {
+                              // Fallback truncation
+                              displayText = textContent.length > 25 ? textContent.slice(0, 25) + '...' : textContent;
+                            }
+                          }
+                        }
+                        
+                        return (
+                          <a
+                            {...props}
+                            href={href}
+                            className="text-blue-500 hover:text-blue-600 underline inline-block whitespace-nowrap"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            title={url}
+                          >
+                            {displayText}
+                          </a>
+                        );
+                      },
+                      // Ensure paragraphs don't overflow
+                      p: ({ node, ...props }) => (
+                        <p {...props} className="break-words whitespace-pre-wrap" style={{ overflowWrap: "anywhere" }} />
+                      ),
+                    }}
+                  >
+                    {msg.content}
+                  </ReactMarkdown>
+                </div>
               </div>
             </div>
           ))}
+          
+          {/* Loading indicator when waiting for response */}
+          {loading && (
+            <div className="flex justify-start">
+              <div className="max-w-[85%] p-3 rounded-lg bg-muted text-foreground">
+                <div className="flex items-center gap-2">
+                  <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                  <span className="text-sm text-muted-foreground">Agenting...</span>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </SidebarContent>
 
@@ -176,7 +287,7 @@ export function ChatSidebar() {
                 }
               }}
               placeholder={
-                loading ? "Assistant is thinking..." : "Ask me anything..."
+                loading ? "Assistant is agenting..." : "Ask me anything..."
               }
               className="min-h-[80px] resize-none"
               disabled={loading}

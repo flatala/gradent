@@ -42,7 +42,10 @@ Scheduling workflow:
 Important notes:
 - Time inputs should be in ISO 8601 format (e.g., '2025-01-15T14:00:00')
 - Timezone will be added automatically based on the configured timezone
-- The current date/time is provided in the context
+- ALL times and dates are in the configured timezone (not UTC)
+- The current date/time AND day of week are provided in the context
+- When the user says "Friday", calculate the date based on the current day of week provided
+- When the user says "tomorrow", "next week", etc., use the current datetime as reference
 - calendar_id is optional - defaults to the configured calendar
 - For Google Meet, use location="Google Meet" (not empty)
 - Always check availability before scheduling to avoid conflicts
@@ -69,7 +72,13 @@ Current date/time: Use this to interpret relative dates and times.
 Follow the scheduling workflow:
 1. If a specific time is provided (preferred_start/preferred_end), check availability and schedule immediately
 2. If a date range is provided, find the first available slot and schedule immediately
-3. If NO time preferences given at all:
+3. If constraints mention specific days (e.g., "on Wednesday", "Friday", "Monday and Thursday"):
+   - Look at the "Next 7 days reference" in your context
+   - Find the matching day name and use that exact date
+   - For example, if constraints say "on Wednesday" and the reference shows "Wednesday = 2025-11-12", use 2025-11-12
+   - Pick a reasonable time (9-10am or 2-3pm) on that date
+   - Check availability and schedule immediately
+4. If NO time preferences given at all:
    - Get upcoming meetings to understand the schedule
    - Pick a reasonable default time (next business day, 9-10am or 2-3pm)
    - Check if that slot is available

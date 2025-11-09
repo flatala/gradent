@@ -1,6 +1,6 @@
-import React, { createContext, useContext, useState, useCallback } from "react";
+import React, { createContext, useContext, useState, useCallback, useEffect } from "react";
 
-export type ToolCallType = "scheduler" | "assessment" | "suggestions" | "exam_generation";
+export type ToolCallType = "scheduler" | "assessment" | "suggestions" | "exam_generation" | "progress_tracking" | "context_update";
 export type ToolCallStatus = "pending" | "in_progress" | "completed" | "failed";
 
 export interface ToolCallVisualization {
@@ -27,9 +27,47 @@ type WorkflowContextType = {
 
 const WorkflowContext = createContext<WorkflowContextType | undefined>(undefined);
 
+const STORAGE_KEY = "gradent_agent_activity";
+const SESSION_KEY = "dashboard-assistant"; // Match the session ID from ChatSidebar
+
+// Helper to load tool calls from localStorage
+const loadToolCallsFromStorage = (): ToolCallVisualization[] => {
+  try {
+    const stored = localStorage.getItem(`${STORAGE_KEY}_${SESSION_KEY}`);
+    if (stored) {
+      const parsed = JSON.parse(stored);
+      // Convert timestamp strings back to Date objects
+      return parsed.map((tc: any) => ({
+        ...tc,
+        timestamp: new Date(tc.timestamp),
+      }));
+    }
+  } catch (error) {
+    console.error("Failed to load agent activity from storage:", error);
+  }
+  return [];
+};
+
+// Helper to save tool calls to localStorage
+const saveToolCallsToStorage = (toolCalls: ToolCallVisualization[]) => {
+  try {
+    localStorage.setItem(`${STORAGE_KEY}_${SESSION_KEY}`, JSON.stringify(toolCalls));
+  } catch (error) {
+    console.error("Failed to save agent activity to storage:", error);
+  }
+};
+
 export const WorkflowProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [toolCalls, setToolCalls] = useState<ToolCallVisualization[]>([]);
+  const [toolCalls, setToolCalls] = useState<ToolCallVisualization[]>(() => {
+    // Initialize from localStorage on mount
+    return loadToolCallsFromStorage();
+  });
   const [isVisible, setIsVisible] = useState(false);
+
+  // Persist to localStorage whenever toolCalls changes
+  useEffect(() => {
+    saveToolCallsToStorage(toolCalls);
+  }, [toolCalls]);
 
   const addToolCall = useCallback((toolCall: Omit<ToolCallVisualization, "id" | "timestamp">) => {
     const id = `tool-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;

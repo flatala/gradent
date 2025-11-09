@@ -18,24 +18,26 @@ def normalize_datetime_for_api(dt_string: str) -> str:
     Returns:
         RFC3339 formatted string with timezone (e.g., '2025-01-15T14:00:00-08:00' or '2025-01-15T14:00:00Z')
     """
-    # If already has timezone info, return as-is
-    if dt_string.endswith('Z') or '+' in dt_string or dt_string.count('-') > 2:
+    import re
+    import pytz
+
+    # Check if already has timezone info using proper regex
+    # Matches: Z, +HH:MM, -HH:MM, +HHMM, -HHMM
+    tz_pattern = r'(Z|[+-]\d{2}:?\d{2})$'
+    if re.search(tz_pattern, dt_string):
         return dt_string
 
     # Get configured timezone
     tz_name = get_default_timezone()
 
     try:
-        from datetime import datetime
-        import pytz
-
-        # Parse the datetime string
+        # Parse the datetime string (naive)
         dt = datetime.fromisoformat(dt_string)
 
         # Get timezone
         if tz_name and tz_name != "UTC":
             tz = pytz.timezone(tz_name)
-            # Localize the naive datetime
+            # Localize the naive datetime to the configured timezone
             dt_localized = tz.localize(dt)
             # Format as RFC3339
             return dt_localized.isoformat()
@@ -55,6 +57,60 @@ def get_default_calendar_id() -> str:
         or os.getenv("GOOGLE_CALENDAR_DEFAULT_CALENDAR_ID")
         or "primary"
     )
+
+
+def validate_datetime(dt_string: str, context: str = "") -> tuple[bool, str]:
+    """Validate that a datetime string is reasonable.
+
+    Args:
+        dt_string: ISO 8601 datetime string to validate
+        context: Context for error messages (e.g., "start_time", "end_time")
+
+    Returns:
+        Tuple of (is_valid, error_message)
+    """
+    import pytz
+    import re
+
+    try:
+        # Check format - should be ISO 8601
+        iso_pattern = r'^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(Z|[+-]\d{2}:?\d{2})?$'
+        if not re.match(iso_pattern, dt_string):
+            return False, f"{context}: Invalid datetime format. Expected ISO 8601 (e.g., '2025-01-15T14:00:00')"
+
+        # Parse the datetime
+        dt = datetime.fromisoformat(dt_string.replace('Z', '+00:00'))
+
+        # Get current time in the configured timezone
+        tz_name = get_default_timezone()
+        if tz_name and tz_name != "UTC":
+            tz = pytz.timezone(tz_name)
+            now = datetime.now(tz)
+        else:
+            now = datetime.now(pytz.UTC)
+
+        # Make dt timezone-aware if it's naive
+        if dt.tzinfo is None:
+            if tz_name and tz_name != "UTC":
+                tz = pytz.timezone(tz_name)
+                dt = tz.localize(dt)
+            else:
+                dt = pytz.UTC.localize(dt)
+
+        # Check if datetime is too far in the past (more than 1 hour ago)
+        one_hour_ago = now - timedelta(hours=1)
+        if dt < one_hour_ago:
+            return False, f"{context}: Datetime {dt_string} is in the past (more than 1 hour ago)"
+
+        # Check if datetime is too far in the future (more than 5 years)
+        five_years_ahead = now + timedelta(days=365 * 5)
+        if dt > five_years_ahead:
+            return False, f"{context}: Datetime {dt_string} is too far in the future (more than 5 years)"
+
+        return True, ""
+
+    except Exception as e:
+        return False, f"{context}: Failed to parse datetime {dt_string}: {e}"
 
 
 def get_default_timezone() -> str:
@@ -165,6 +221,25 @@ def schedule_meeting(
         calendar_id = calendar_id or get_default_calendar_id()
         timezone = get_default_timezone()
         service = get_calendar_api_resource()
+
+        # Validate datetime inputs
+        is_valid_start, start_error = validate_datetime(start_time, "start_time")
+        if not is_valid_start:
+            _logger.error(f"SCHEDULER: Invalid start_time: {start_error}")
+            return {
+                "success": False,
+                "error": start_error,
+                "event_id": None,
+            }
+
+        is_valid_end, end_error = validate_datetime(end_time, "end_time")
+        if not is_valid_end:
+            _logger.error(f"SCHEDULER: Invalid end_time: {end_error}")
+            return {
+                "success": False,
+                "error": end_error,
+                "event_id": None,
+            }
 
         # Normalize datetime strings to RFC3339 format
         start_time_normalized = normalize_datetime_for_api(start_time)
@@ -353,10 +428,16 @@ def get_upcoming_meetings(
         timezone = get_default_timezone()
         service = get_calendar_api_resource()
 
-        # Calculate time range
-        now = datetime.utcnow()
-        time_min = now.isoformat() + 'Z'
-        time_max = (now + timedelta(days=days_ahead)).isoformat() + 'Z'
+        # Calculate time range in the configured timezone
+        import pytz
+        if timezone and timezone != "UTC":
+            tz = pytz.timezone(timezone)
+            now = datetime.now(tz)
+        else:
+            now = datetime.now(pytz.UTC)
+
+        time_min = now.isoformat()
+        time_max = (now + timedelta(days=days_ahead)).isoformat()
 
         _logger.info(f"SCHEDULER: Getting upcoming meetings for next {days_ahead} days")
 
