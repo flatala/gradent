@@ -824,11 +824,12 @@ async def generate_exam(
 
         api_base_url = os.getenv("EXAM_API_BASE_URL", "http://localhost:3000")
         default_model = os.getenv("EXAM_API_MODEL", "meta-llama/llama-4-scout:free")
+        enhanced_description = f"{question_description} IMPORTANT: Do NOT include the correct answers at any point - neither next to the questions nor in a separate section at the end. Do not include 'marks'."
 
         state = ExamAPIState(
             pdf_paths=saved_paths,
             question_header=question_header,
-            question_description=question_description,
+            question_description=enhanced_description,
             api_key=final_api_key,
             api_base_url=api_base_url,
             model_name=model_name or default_model,
