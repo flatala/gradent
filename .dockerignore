@@ -1,0 +1,61 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+dist/
+build/
+*.egg
+
+# Virtual environments
+venv/
+env/
+ENV/
+.venv
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Project specific
+.env
+.env.local
+*.log
+logs/
+data/study_assistant.db
+data/vector_db/
+_results/
+
+# Git
+.git/
+.gitignore
+
+# Node modules (for frontend builds)
+node_modules/
+frontend/node_modules/
+frontend/dist/
+frontend/.next/
+
+# Test files
+tests/
+*.test.py
+*.spec.py
+
+# Documentation
+docs/
+*.md
+!README.md
+
+# Deployment
+deployment/
+docker-compose*.yml
+Dockerfile*
