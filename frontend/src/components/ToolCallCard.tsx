@@ -306,11 +306,10 @@ const SchedulerResult = ({ result }: { result: any }) => {
             size="sm"
             className="w-full text-xs"
             onClick={() => {
-              console.log("Opening meeting link:", meetingLink);
               window.open(meetingLink, "_blank");
             }}
           >
-            🎥 Join Google Meet
+            Join Google Meet
           </Button>
         )}
         {calendarLink && (
@@ -319,11 +318,24 @@ const SchedulerResult = ({ result }: { result: any }) => {
             size="sm"
             className="w-full text-xs"
             onClick={() => {
-              console.log("Opening calendar link:", calendarLink);
               window.open(calendarLink, "_blank");
             }}
           >
-            📅 View in Calendar
+            View in Calendar
+          </Button>
+        )}
+        {eventId && (
+          <Button
+            variant="destructive"
+            size="sm"
+            className="w-full text-xs"
+            onClick={() => {
+              // TODO: Implement cancel meeting functionality
+              console.log("Cancel meeting:", eventId);
+              alert("Cancel meeting functionality coming soon!");
+            }}
+          >
+            Cancel Meeting
           </Button>
         )}
       </div>
@@ -333,16 +345,6 @@ const SchedulerResult = ({ result }: { result: any }) => {
         <p className="text-[10px] text-muted-foreground/60 text-center break-all">
           Event ID: {eventId}
         </p>
-      )}
-      
-      {/* Debug info in development */}
-      {process.env.NODE_ENV === 'development' && (
-        <details className="text-[10px] text-muted-foreground">
-          <summary className="cursor-pointer">Debug Info</summary>
-          <pre className="mt-2 bg-muted/50 p-2 rounded overflow-auto max-h-32">
-            {JSON.stringify(parsedResult, null, 2)}
-          </pre>
-        </details>
       )}
     </div>
   );

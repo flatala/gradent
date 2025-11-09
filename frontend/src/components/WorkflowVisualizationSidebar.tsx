@@ -1,11 +1,11 @@
-import { X, Activity } from "lucide-react";
+import { X, Activity, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useWorkflow } from "@/contexts/WorkflowContext";
 import { ToolCallCard } from "@/components/ToolCallCard";
 
 export const WorkflowVisualizationSidebar = () => {
-  const { toolCalls, isVisible, setVisible } = useWorkflow();
+  const { toolCalls, isVisible, setVisible, clearToolCalls } = useWorkflow();
 
   return (
     <div 
@@ -26,14 +26,27 @@ export const WorkflowVisualizationSidebar = () => {
             </p>
           </div>
         </div>
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={() => setVisible(false)}
-          className="h-8 w-8"
-        >
-          <X className="h-4 w-4" />
-        </Button>
+        <div className="flex items-center gap-1">
+          {toolCalls.length > 0 && (
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={clearToolCalls}
+              className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
+              title="Clear all activity"
+            >
+              <Trash2 className="h-4 w-4" />
+            </Button>
+          )}
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setVisible(false)}
+            className="h-8 w-8"
+          >
+            <X className="h-4 w-4" />
+          </Button>
+        </div>
       </div>
 
       {/* Content */}

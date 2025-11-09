@@ -39,18 +39,6 @@ const IndexContent = () => {
           <div className="container mx-auto px-4 py-8">
             {/* Header - Centered */}
             <div className="mb-8 animate-fade-in">
-              <div className="flex flex-col items-center justify-center text-center mb-6">
-                <div className="w-16 h-16 bg-gradient-primary rounded-2xl flex items-center justify-center shadow-glow animate-pulse-glow mb-4">
-                  <Brain className="w-8 h-8 text-white" />
-                </div>
-                <h1 className="text-4xl font-bold bg-gradient-to-r from-primary via-primary/80 to-accent bg-clip-text text-transparent">
-                  GradEnt AI
-                </h1>
-                <p className="text-muted-foreground">
-                  Your intelligent study companion
-                </p>
-              </div>
-
               {/* Tab Navigation - Space Between */}
               <div className="flex justify-between items-center">
                 <div className="flex gap-3">
