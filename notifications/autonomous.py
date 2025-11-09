@@ -1,60 +1,13 @@
-"""Enhanced Discord notification system for autonomous mode."""
-from __future__ import annotations
+"""Autonomous agent notification system.
 
-import os
-from datetime import datetime
-from typing import Optional, Dict, Any
-import httpx
+Sends notifications via ntfy.sh for mobile push notifications.
+"""
 import logging
+import httpx
+from typing import Dict, Any, Optional
+from datetime import datetime
 
 logger = logging.getLogger(__name__)
-
-
-async def send_discord_embed(
-    webhook_url: str,
-    title: str,
-    description: str,
-    color: int = 5814783,
-    fields: Optional[list[Dict[str, Any]]] = None,
-) -> bool:
-    """Send an embed message to Discord webhook (async version).
-
-    Args:
-        webhook_url: Discord webhook URL
-        title: Embed title
-        description: Embed description
-        color: Embed color (decimal)
-        fields: Optional list of fields [{"name": "...", "value": "...", "inline": False}]
-
-    Returns:
-        bool indicating success
-    """
-    if not webhook_url:
-        logger.warning("No Discord webhook URL provided")
-        return False
-
-    embed = {
-        "title": title,
-        "description": description,
-        "color": color,
-        "timestamp": datetime.utcnow().isoformat(),
-        "footer": {"text": "GradEnt AI Autonomous Mode"},
-    }
-
-    if fields:
-        embed["fields"] = fields
-
-    payload = {"embeds": [embed]}
-
-    try:
-        async with httpx.AsyncClient() as client:
-            response = await client.post(webhook_url, json=payload, timeout=10)
-            response.raise_for_status()
-            logger.info(f"Discord notification sent: {title}")
-            return True
-    except Exception as e:
-        logger.error(f"Failed to send Discord notification: {e}")
-        return False
 
 
 async def send_ntfy_notification(
@@ -108,57 +61,55 @@ async def send_ntfy_notification(
 
 
 async def send_tool_completion_notification(
-    webhook_url: str,
+    webhook_url: str,  # Kept for compatibility but unused
     tool_type: str,
     tool_name: str,
     result: Dict[str, Any],
     ntfy_topic: Optional[str] = None,
 ) -> bool:
-    """Send a notification when a tool completes.
-    Now supports both Discord and ntfy!
+    """Send a notification when a tool completes (ntfy only).
 
     Args:
-        webhook_url: Discord webhook URL
-        tool_type: Type of tool (scheduler, assessment, suggestions, exam_generation, context_update, query)
+        webhook_url: Ignored (kept for compatibility)
+        tool_type: Type of tool (scheduler, suggestions)
         tool_name: Human-readable name
         result: Tool result data
-        ntfy_topic: Optional ntfy topic (if provided, also sends to ntfy)
+        ntfy_topic: ntfy topic for push notifications
 
     Returns:
         bool indicating success
     """
-    # Icon and color mapping
+    logger.info(f"[NOTIF] Tool completion: type={tool_type}, ntfy={'yes' if ntfy_topic else 'no'}")
+    
+    # Simplified titles - just the action, no "Completed"
     tool_config = {
-        "scheduler": {"icon": "📅", "color": 3447003, "emoji": "calendar"},  # Blue
-        "assessment": {"icon": "📊", "color": 15844367, "emoji": "bar_chart"},  # Gold
-        "suggestions": {"icon": "💡", "color": 5763719, "emoji": "bulb"},  # Green
-        "exam_generation": {"icon": "🧠", "color": 10181046, "emoji": "brain"},  # Purple
-        "context_update": {"icon": "🔄", "color": 5793266, "emoji": "arrows_counterclockwise"},  # Teal
-        "query": {"icon": "🔍", "color": 9807270, "emoji": "mag"},  # Gray
+        "scheduler": {"title": "Scheduled Meeting", "emoji": "calendar"},
+        "suggestions": {"title": "Study Suggestion", "emoji": "bulb"},
     }
 
-    config = tool_config.get(tool_type, {"icon": "✅", "color": 5814783, "emoji": "white_check_mark"})
-    title = f"{config['icon']} {tool_name} Completed"
+    config = tool_config.get(tool_type)
+    if not config:
+        # Skip notifications for other tool types
+        logger.debug(f"[NOTIF] Skipping notification for tool type: {tool_type}")
+        return True
+    
     description = _format_tool_result(tool_type, result)
+    
+    logger.info(f"[NOTIF] Sending: {config['title']}")
 
-    # Send to Discord if webhook provided
-    discord_success = True
-    if webhook_url:
-        discord_success = await send_discord_embed(webhook_url, title, description, config["color"])
-    
-    # ALSO send to ntfy if topic provided
+    # Send to ntfy if topic provided
     if ntfy_topic:
-        # Format for ntfy (simpler, no markdown)
-        ntfy_message = f"{tool_name} completed!\n\n{description}"
+        logger.info(f"[NOTIF] Attempting ntfy send...")
         await send_ntfy_notification(
-            message=ntfy_message,
+            message=description,
             topic=ntfy_topic,
-            title=title,
+            title=config['title'],
             priority=4,  # High priority
-            tags=[config["emoji"], "robot"]
+            tags=[config["emoji"]]
         )
+        return True
     
-    return discord_success
+    return False
 
 
 def _format_tool_result(tool_type: str, result: Dict[str, Any]) -> str:
@@ -205,75 +156,3 @@ def _format_tool_result(tool_type: str, result: Dict[str, Any]) -> str:
             return f"💡 {title}\n+{count-1} more"
     
     return "✅ Task completed"
-
-
-async def send_execution_summary(
-    webhook_url: str,
-    completed_count: int,
-    failed_count: int,
-    tool_calls: list[Dict[str, Any]],
-    next_execution: Optional[str] = None,
-    ntfy_topic: Optional[str] = None,
-) -> bool:
-    """Send a summary notification after autonomous execution.
-
-    Args:
-        webhook_url: Discord webhook URL
-        completed_count: Number of completed tasks
-        failed_count: Number of failed tasks
-        tool_calls: List of tool call info
-        next_execution: ISO format timestamp of next execution
-        ntfy_topic: Optional ntfy topic (if provided, also sends to ntfy)
-
-    Returns:
-        bool indicating success
-    """
-    summary = f"**Execution Summary**\n\n"
-    summary += f"✅ Completed: {completed_count} task{'s' if completed_count != 1 else ''}\n"
-
-    if failed_count > 0:
-        summary += f"❌ Failed: {failed_count} task{'s' if failed_count != 1 else ''}\n"
-
-    summary += "\n**Tasks Performed:**\n"
-    for tc in tool_calls:
-        if tc.get("status") == "completed":
-            icon = {"scheduler": "📅", "assessment": "📊", "suggestions": "💡", "exam_generation": "🧠"}.get(
-                tc.get("tool_type", ""), "✅"
-            )
-            summary += f"• {icon} {tc.get('tool_name', 'Unknown')}\n"
-
-    if next_execution:
-        try:
-            next_dt = datetime.fromisoformat(next_execution)
-            timestamp = int(next_dt.timestamp())
-            summary += f"\n⏰ Next execution: <t:{timestamp}:R>"
-        except Exception:
-            summary += f"\n⏰ Next execution: {next_execution}"
-
-    # Send to Discord
-    discord_success = True
-    if webhook_url:
-        discord_success = await send_discord_embed(
-            webhook_url,
-            "✅ Autonomous Agent Completed",
-            summary,
-            3066993,  # Green
-        )
-    
-    # ALSO send to ntfy
-    if ntfy_topic:
-        ntfy_summary = f"Autonomous Agent Completed\n\n"
-        ntfy_summary += f"✅ {completed_count} task(s) completed\n"
-        if failed_count > 0:
-            ntfy_summary += f"❌ {failed_count} task(s) failed\n"
-        
-        await send_ntfy_notification(
-            message=ntfy_summary,
-            topic=ntfy_topic,
-            title="✅ Autonomous Agent Completed",
-            priority=3,
-            tags=["white_check_mark", "robot", "tada"]
-        )
-    
-    return discord_success
-

@@ -24,8 +24,21 @@ import type {
 
 export const API_BASE = import.meta.env.VITE_API_BASE ?? "/api";
 
+const jsonHeaders = {
+  "Content-Type": "application/json",
+};
+
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
-  const response = await fetch(`${API_BASE}${path}`, options);
+  // Merge headers, ensuring Content-Type is set for requests with body
+  const headers = {
+    ...jsonHeaders,
+    ...options.headers,
+  };
+  
+  const response = await fetch(`${API_BASE}${path}`, {
+    ...options,
+    headers,
+  });
   const contentType = response.headers.get("content-type");
 
   let data: unknown = null;
@@ -46,10 +59,6 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 
   return (data as T) ?? ({} as T);
 }
-
-const jsonHeaders = {
-  "Content-Type": "application/json",
-};
 
 export const api = {
   // Health -----------------------------------------------------------------
@@ -205,13 +214,6 @@ export const api = {
   async triggerAutonomousExecution() {
     return request<SimpleStatusResponse>("/autonomous/execute", {
       method: "POST",
-    });
-  },
-
-  async testDiscordWebhook(webhookUrl: string) {
-    return request<SimpleStatusResponse>("/autonomous/test-webhook", {
-      method: "POST",
-      body: JSON.stringify({ webhook_url: webhookUrl }),
     });
   },
 

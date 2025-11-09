@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
-import { Bot, Clock, Webhook, Play, Calendar, Activity, Bell } from "lucide-react";
+import { Bot, Clock, Play, Calendar, Activity, Bell } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -21,7 +21,6 @@ type ExecutionFrequency = "15min" | "30min" | "1hour" | "3hours" | "6hours" | "1
 interface AutonomousConfig {
   enabled: boolean;
   frequency: ExecutionFrequency;
-  discord_webhook?: string;
   ntfy_topic?: string;
   last_execution?: string;
   next_execution?: string;
@@ -43,11 +42,9 @@ export default function AutonomousMode() {
     frequency: "1hour",
     ntfy_topic: "gradent-ai-test-123",
   });
-  const [discordWebhook, setDiscordWebhook] = useState("");
   const [ntfyTopic, setNtfyTopic] = useState("gradent-ai-test-123");
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [testing, setTesting] = useState(false);
   const [testingAll, setTestingAll] = useState(false);
   const { toast } = useToast();
 
@@ -58,7 +55,6 @@ export default function AutonomousMode() {
       try {
         const response = await api.getAutonomousConfig();
         setConfig(response);
-        setDiscordWebhook(response.discord_webhook || "");
         setNtfyTopic(response.ntfy_topic || "gradent-ai-test-123");
       } catch (error) {
         console.error("Failed to load config:", error);
@@ -75,7 +71,6 @@ export default function AutonomousMode() {
       await api.updateAutonomousConfig({
         enabled: config.enabled,
         frequency: config.frequency,
-        discord_webhook: discordWebhook || undefined,
         ntfy_topic: ntfyTopic || "gradent-ai-test-123",
       });
       toast({
@@ -95,34 +90,6 @@ export default function AutonomousMode() {
 
   const handleToggleEnabled = async (enabled: boolean) => {
     setConfig({ ...config, enabled });
-  };
-
-  const handleTestWebhook = async () => {
-    if (!discordWebhook) {
-      toast({
-        title: "Error",
-        description: "Please enter a Discord webhook URL first.",
-        variant: "destructive",
-      });
-      return;
-    }
-    
-    setTesting(true);
-    try {
-      await api.testDiscordWebhook(discordWebhook);
-      toast({
-        title: "Success",
-        description: "Test notification sent to Discord!",
-      });
-    } catch (error) {
-      toast({
-        title: "Error",
-        description: "Failed to send test notification. Check your webhook URL.",
-        variant: "destructive",
-      });
-    } finally {
-      setTesting(false);
-    }
   };
 
   const handleRunNow = async () => {
@@ -150,12 +117,12 @@ export default function AutonomousMode() {
       await api.testAllNotifications();
       toast({
         title: "Test notifications sent!",
-        description: "Check your Discord and ntfy for 5 demo notifications.",
+        description: "Check your ntfy app for demo notifications.",
       });
     } catch (error) {
       toast({
         title: "Error",
-        description: "Failed to send test notifications. Make sure you've configured at least one channel.",
+        description: "Failed to send test notifications. Make sure you've configured ntfy topic.",
         variant: "destructive",
       });
     } finally {
@@ -345,42 +312,6 @@ export default function AutonomousMode() {
               suggestions, and schedule events based on this frequency.
             </p>
           </div>
-        </CardContent>
-      </Card>
-
-      {/* Discord Webhook */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Webhook className="h-5 w-5" />
-            Discord Notifications
-          </CardTitle>
-          <CardDescription>
-            Receive notifications when the agent completes tasks
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="webhook">Discord Webhook URL</Label>
-            <Input
-              id="webhook"
-              type="url"
-              placeholder="https://discord.com/api/webhooks/..."
-              value={discordWebhook}
-              onChange={(e) => setDiscordWebhook(e.target.value)}
-            />
-            <p className="text-xs text-muted-foreground">
-              Get your webhook URL from Discord Server Settings → Integrations → Webhooks
-            </p>
-          </div>
-          <Button
-            onClick={handleTestWebhook}
-            variant="outline"
-            className="w-full"
-            disabled={testing || !discordWebhook}
-          >
-            {testing ? "Sending..." : "Send Test Notification"}
-          </Button>
         </CardContent>
       </Card>
 
