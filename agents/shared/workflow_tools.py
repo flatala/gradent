@@ -23,6 +23,8 @@ from agents.task_agents.assignment_assessment import assessment_graph, Assessmen
 from shared.config import Configuration
 from shared.utils import get_text_llm
 from agents.task_agents.suggestions import SuggestionsState, Suggestion as WorkflowSuggestion, suggestions_graph
+from agents.task_agents.progress_tracking.graph import progress_tracking_graph
+from agents.task_agents.progress_tracking.state import ProgressLoggingState
 
 _logger = logging.getLogger("chat")
 
@@ -36,6 +38,7 @@ async def run_scheduler_workflow(
     attendee_emails: Optional[List[str]] = None,
     location: Optional[str] = None,
     constraints: Optional[str] = None,
+    user_id: Optional[int] = None,
     *, config: Annotated[RunnableConfig, InjectedToolArg]
 ) -> str:
     """Schedule an event intelligently by checking calendars and finding optimal times.
@@ -60,16 +63,19 @@ async def run_scheduler_workflow(
         attendee_emails: Optional list of attendee emails to coordinate with
         location: Meeting location - physical address or 'Google Meet' (optional)
         constraints: Optional scheduling preferences (e.g., 'mornings only', 'after 2pm')
+        user_id: User ID for the scheduler (defaults to 1)
         config: Injected configuration (automatically provided)
 
     Returns:
         Event details with meeting link and confirmation (as JSON string)
     """
-    cfg = Configuration.from_runnable_config(config)
+    resolved_user_id = _resolve_user_id(user_id)
+    
     if _logger:
         try:
             _logger.info(
-                "TOOL CALL: run_scheduler_workflow | meeting=%s | duration=%d | attendees=%d",
+                "TOOL CALL: run_scheduler_workflow | user_id=%s | meeting=%s | duration=%d | attendees=%d",
+                resolved_user_id,
                 meeting_name,
                 duration_minutes,
                 len(attendee_emails) if attendee_emails else 0,
@@ -175,6 +181,7 @@ async def assess_assignment(
     description: str,
     course_name: str = "Unknown Course",
     assignment_id: int = None,
+    user_id: Optional[int] = None,
     *, config: Annotated[RunnableConfig, InjectedToolArg]
 ) -> str:
     """Assess the difficulty and effort required for an assignment.
@@ -197,15 +204,18 @@ async def assess_assignment(
         description: Full assignment description, requirements, or rubric
         course_name: Name of the course (optional)
         assignment_id: Database ID if the assignment already exists (optional)
+        user_id: User ID (defaults to 1)
         config: Injected configuration (automatically provided)
 
     Returns:
         Structured assessment with effort estimates, milestones, and breakdown (as JSON string)
     """
-    cfg = Configuration.from_runnable_config(config)
+    resolved_user_id = _resolve_user_id(user_id)
+    
     if _logger:
         try:
-            _logger.info("TOOL CALL: assess_assignment | title=%s | course=%s", title, course_name)
+            _logger.info("TOOL CALL: assess_assignment | user_id=%s | title=%s | course=%s", 
+                        resolved_user_id, title, course_name)
         except Exception:
             pass
 
@@ -277,13 +287,20 @@ async def assess_assignment(
         return f"Error assessing assignment: {str(e)}"
 
 
-def _resolve_user_id(user_id: Optional[int]) -> Optional[int]:
-    """Return a valid user id, defaulting to the first user in the DB."""
+def _resolve_user_id(user_id: Optional[int] = None) -> int:
+    """Return a valid user id, defaulting to 1.
+    
+    Args:
+        user_id: Optional user ID. If None, defaults to 1.
+        
+    Returns:
+        User ID (defaults to 1 for single-user setup)
+    """
     if user_id is not None:
         return user_id
-    with get_db_session() as db:
-        record = db.query(User.id).order_by(User.id.asc()).first()
-        return record[0] if record else None
+    # Default to user_id=1 for now (single-user setup)
+    # In the future, this could check the database or use auth context
+    return 1
 
 
 def _parse_suggested_time(value: Optional[str]) -> Optional[datetime]:
@@ -393,18 +410,13 @@ async def generate_suggestions(
     actionable nudges.
 
     Args:
-        user_id: Target user (defaults to the first user in the database)
+        user_id: Target user (defaults to 1)
         config: Injected LangChain runnable configuration
 
     Returns:
         JSON array of suggestions with category, priority, and references.
     """
-    cfg = Configuration.from_runnable_config(config)
     resolved_user_id = _resolve_user_id(user_id)
-    if resolved_user_id is None:
-        return json.dumps({
-            "error": "No user found in database. Populate the DB before requesting suggestions."
-        }, indent=2)
 
     if _logger:
         try:
@@ -441,6 +453,155 @@ async def generate_suggestions(
             pass
 
     return json.dumps(serialized, indent=2)
+
+
+@tool
+async def log_progress_update(
+    user_message: str,
+    user_id: Optional[int] = None,
+    *, config: Annotated[RunnableConfig, InjectedToolArg]
+) -> str:
+    """Log a study progress update through conversational interaction.
+
+    Use this tool when the user wants to:
+    - Log time spent studying or working on an assignment
+    - Record progress on homework, projects, or exam prep
+    - Track study sessions with duration and quality
+    - Update how much work they've done on a task
+
+    This workflow provides a conversational interface that:
+    - Identifies which assignment they worked on
+    - Extracts study duration from natural language (e.g., "2 hours", "90 minutes")
+    - Optionally asks for focus and quality ratings (1-5 scale)
+    - Confirms the information before logging
+    - Handles follow-up questions if information is missing
+
+    Examples of user messages this handles:
+    - "I studied calculus for 2 hours"
+    - "Worked on the CS assignment for 90 minutes, really focused"
+    - "Just finished 1.5 hours on the biology lab report"
+    - "Spent 45 mins on math homework but kept getting distracted"
+
+    Args:
+        user_message: The user's natural language progress update
+        user_id: Target user ID (defaults to 1)
+        config: Injected configuration (automatically provided)
+
+    Returns:
+        Confirmation message with logged study details (as JSON string)
+    """
+    resolved_user_id = _resolve_user_id(user_id)
+
+    if _logger:
+        try:
+            _logger.info(
+                "TOOL CALL: log_progress_update | user_id=%s | message=%s",
+                resolved_user_id,
+                user_message[:100] + "..." if len(user_message) > 100 else user_message
+            )
+        except Exception:
+            pass
+
+    start = perf_counter()
+
+    # Create initial state
+    initial_state = ProgressLoggingState(
+        user_id=resolved_user_id,
+        messages=[HumanMessage(content=user_message)],
+        assignment_id=None,
+        assignment_candidates=None,
+        minutes=None,
+        focus_rating=None,
+        quality_rating=None,
+        notes="",
+        study_block_id=None,
+        missing_fields=[],
+        needs_confirmation=False,
+        confirmed=False,
+        cancelled=False,
+        success=False,
+        result_message="",
+        logged_data=None,
+    )
+
+    try:
+        result = await progress_tracking_graph.ainvoke(initial_state, config)
+        
+        # Extract response
+        messages = result.get("messages", [])
+        last_message = messages[-1] if messages else None
+        response = last_message.content if last_message else "I'm not sure how to help with that."
+        
+        # Check if logging succeeded
+        if result.get("success"):
+            logged_data = result.get("logged_data")
+            if _logger:
+                try:
+                    _logger.info(
+                        "TOOL DONE: log_progress_update | status=success | duration=%.2fs | minutes=%s",
+                        perf_counter() - start,
+                        logged_data.get("minutes") if logged_data else "unknown"
+                    )
+                except Exception:
+                    pass
+            
+            # Return structured success response
+            return json.dumps({
+                "status": "success",
+                "message": response,
+                "logged_data": logged_data,
+                "conversation_complete": True,
+            }, indent=2)
+        
+        # Check if cancelled
+        if result.get("cancelled"):
+            if _logger:
+                try:
+                    _logger.info(
+                        "TOOL DONE: log_progress_update | status=cancelled | duration=%.2fs",
+                        perf_counter() - start,
+                    )
+                except Exception:
+                    pass
+            
+            return json.dumps({
+                "status": "cancelled",
+                "message": response,
+                "conversation_complete": True,
+            }, indent=2)
+        
+        # Conversation is ongoing (needs more info or confirmation)
+        if _logger:
+            try:
+                _logger.info(
+                    "TOOL DONE: log_progress_update | status=ongoing | duration=%.2fs | needs_more_info",
+                    perf_counter() - start,
+                )
+            except Exception:
+                pass
+        
+        return json.dumps({
+            "status": "ongoing",
+            "message": response,
+            "conversation_complete": False,
+            "state": {
+                "has_assignment": result.get("assignment_id") is not None,
+                "has_duration": result.get("minutes") is not None,
+                "missing_fields": result.get("missing_fields", []),
+                "needs_confirmation": result.get("needs_confirmation", False),
+            }
+        }, indent=2)
+        
+    except Exception as e:
+        if _logger:
+            try:
+                _logger.error("TOOL ERROR: log_progress_update | error=%s", str(e))
+            except Exception:
+                pass
+        return json.dumps({
+            "status": "error",
+            "error": f"Failed to process progress update: {str(e)}"
+        }, indent=2)
 
 
 @tool

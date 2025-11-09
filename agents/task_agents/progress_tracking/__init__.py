@@ -1,11 +1,11 @@
 """Progress tracking workflow for logging study sessions."""
-from workflows.progress_tracking.tools import (
+from agents.task_agents.progress_tracking.tools import (
     log_study_progress,
     get_assignment_progress,
     get_user_study_summary,
     parse_progress_from_text,
 )
-from workflows.progress_tracking.graph import (
+from agents.task_agents.progress_tracking.graph import (
     run_progress_tracking,
     progress_tracking_graph,
 )
