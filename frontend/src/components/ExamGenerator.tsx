@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type ChangeEvent, type DragEvent, type FormEvent } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -27,18 +27,23 @@ import ReactMarkdown from "react-markdown";
 import rehypeKatex from "rehype-katex";
 import remarkMath from "remark-math";
 import "katex/dist/katex.min.css";
+import { api } from "@/lib/api";
 
 const ExamGenerator = () => {
   const [files, setFiles] = useState<File[]>([]);
+  const [questionHeader, setQuestionHeader] = useState("AI Generated Exam");
   const [questionDescription, setQuestionDescription] = useState("");
+  const [apiKey, setApiKey] = useState("");
+  const [modelName, setModelName] = useState("");
   const [dragOver, setDragOver] = useState(false);
   const [loading, setLoading] = useState(false);
   const [progress, setProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [results, setResults] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [processedFiles, setProcessedFiles] = useState<string[]>([]);
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
     const selectedFiles = Array.from(e.target.files || []);
     const pdfFiles = selectedFiles.filter(
       (file) => file.type === "application/pdf",
@@ -51,7 +56,7 @@ const ExamGenerator = () => {
     setFiles((prev) => [...prev, ...pdfFiles]);
   };
 
-  const handleDrop = (e: React.DragEvent) => {
+  const handleDrop = (e: DragEvent) => {
     e.preventDefault();
     setDragOver(false);
 
@@ -80,7 +85,7 @@ const ExamGenerator = () => {
     setFiles((prev) => prev.filter((_, i) => i !== index));
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
 
     if (files.length === 0) {
@@ -97,6 +102,7 @@ const ExamGenerator = () => {
     setError(null);
     setResults(null);
     setProgress(0);
+    setProcessedFiles([]);
 
     // Simulate progress
     const progressInterval = setInterval(() => {
@@ -110,29 +116,24 @@ const ExamGenerator = () => {
     }, 500);
 
     try {
-      const formData = new FormData();
-      files.forEach((file) => {
-        formData.append("files", file);
-      });
-      formData.append("question_header", "Generated Exam");
-      formData.append("question_description", questionDescription);
-
-      const response = await fetch("/api/generate-exam", {
-        method: "POST",
-        body: formData,
+      const data = await api.generateExam({
+        files,
+        questionHeader,
+        questionDescription,
+        apiKey,
+        modelName,
       });
 
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.detail || "Failed to generate exam");
-      }
-
-      if (data.success) {
+      if (data.success && data.questions) {
         setResults(data.questions);
+        setProcessedFiles(
+          data.uploaded_files && data.uploaded_files.length > 0
+            ? data.uploaded_files
+            : files.map((file) => file.name),
+        );
         setProgress(100);
       } else {
-        setError(data.error || "Unknown error occurred");
+        setError(data.error || "No questions were generated. Please adjust your input.");
       }
     } catch (err) {
       setError((err as Error).message);
@@ -147,7 +148,11 @@ const ExamGenerator = () => {
     setResults(null);
     setError(null);
     setFiles([]);
+    setProcessedFiles([]);
     setQuestionDescription("");
+    setQuestionHeader("AI Generated Exam");
+    setApiKey("");
+    setModelName("");
   };
 
   const handleCopy = () => {
@@ -193,6 +198,19 @@ const ExamGenerator = () => {
             </div>
           </CardHeader>
           <CardContent>
+            {processedFiles.length > 0 && (
+              <div className="mb-6">
+                <p className="text-sm font-medium text-muted-foreground mb-2">
+                  Processed Files
+                </p>
+                <ul className="list-disc list-inside text-sm space-y-1 text-muted-foreground">
+                  {processedFiles.map((file) => (
+                    <li key={file}>{file}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
             <Tabs defaultValue="preview" className="w-full">
               <TabsList className="grid w-full grid-cols-2 mb-4">
                 <TabsTrigger value="preview">Preview</TabsTrigger>
@@ -332,6 +350,20 @@ const ExamGenerator = () => {
 
               {/* Question Requirements */}
               <div className="space-y-2">
+                <Label htmlFor="questionHeader">
+                  Exam Title <span className="text-destructive">*</span>
+                </Label>
+                <Input
+                  id="questionHeader"
+                  placeholder="e.g., Midterm Exam - Linear Algebra"
+                  value={questionHeader}
+                  onChange={(e) => setQuestionHeader(e.target.value)}
+                  required
+                  className="text-base"
+                />
+              </div>
+
+              <div className="space-y-2">
                 <Label htmlFor="questionDescription">
                   Question Requirements{" "}
                   <span className="text-destructive">*</span>
@@ -348,6 +380,35 @@ const ExamGenerator = () => {
                   Specify the number of questions, types (MCQ, short answer,
                   etc.), and difficulty level
                 </p>
+              </div>
+
+              {/* Optional Settings */}
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="apiKey">OpenRouter API Key (optional)</Label>
+                  <Input
+                    id="apiKey"
+                    type="password"
+                    placeholder="Overrides server API key"
+                    value={apiKey}
+                    onChange={(e) => setApiKey(e.target.value)}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Leave blank to use the backend configuration.
+                  </p>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="modelName">Model Name (optional)</Label>
+                  <Input
+                    id="modelName"
+                    placeholder="e.g., qwen/qwen3-30b-a3b:free"
+                    value={modelName}
+                    onChange={(e) => setModelName(e.target.value)}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Defaults to the server-configured model.
+                  </p>
+                </div>
               </div>
 
               {/* Submit Button */}
