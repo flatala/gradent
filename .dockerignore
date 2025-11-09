@@ -55,7 +55,3 @@ docs/
 *.md
 !README.md
 
-# Deployment
-deployment/
-docker-compose*.yml
-Dockerfile*
