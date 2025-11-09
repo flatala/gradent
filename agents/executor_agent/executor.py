@@ -20,7 +20,7 @@ from langchain.agents import create_openai_tools_agent, AgentExecutor
 from shared.config import Configuration
 from shared.utils import get_orchestrator_llm
 from agents.task_agents.scheduler import scheduler_graph, SchedulerState
-from .prompts import EXECUTOR_SYSTEM_PROMPT, SCHEDULE_MEETING_TASK_PROMPT, CONTEXT_UPDATE_AND_ASSESS_TASK_PROMPT
+from .prompts import EXECUTOR_SYSTEM_PROMPT, CONTEXT_UPDATE_AND_ASSESS_TASK_PROMPT
 from datetime import datetime, timedelta
 from agents.shared.workflow_tools import (
     run_scheduler_workflow,
