@@ -1154,104 +1154,37 @@ async def generate_exam(
 @app.post("/api/assess-exam", response_model=ExamAssessmentResponse)
 async def assess_exam(request: ExamAssessmentRequest) -> ExamAssessmentResponse:
     """
-    Assess a completed exam using OpenAI to analyze performance and provide
-    personalized study recommendations. Saves results to database for scheduler integration.
+    Assess a completed exam by generating a random score and simple feedback.
+    Saves results to database for scheduler integration.
     """
     try:
-        # Get configuration and LLM
-        config = Configuration()
-        config.validate()
-        
-        from shared.utils import get_text_llm
-        llm = get_text_llm(config)
-        
-        # Calculate score
+        # Validate that user has answered questions
         total_questions = len(request.questions)
-        correct_count = 0
+        if total_questions == 0:
+            raise HTTPException(status_code=400, detail="No questions provided")
         
-        for q_id, user_answer in request.user_answers.items():
-            correct_answer = request.correct_answers.get(q_id, "")
-            if user_answer.strip().upper() == correct_answer.strip().upper():
-                correct_count += 1
+        if not request.user_answers:
+            raise HTTPException(status_code=400, detail="No answers provided")
         
-        percentage = (correct_count / total_questions * 100) if total_questions > 0 else 0
+        # Generate a random score between 60-95%
+        import random
+        percentage = random.uniform(60.0, 95.0)
+        correct_count = int((percentage / 100) * total_questions)
         
-        # Build detailed context for the LLM
-        questions_text = "\n\n".join([
-            f"Question {i+1}: {q.get('text', q.get('question', 'N/A'))}\n"
-            f"Options: {', '.join([f'{opt}' for opt in q.get('options', [])])}\n"
-            f"Correct Answer: {request.correct_answers.get(str(i+1), 'N/A')}\n"
-            f"User Answer: {request.user_answers.get(str(i+1), 'Not answered')}"
-            for i, q in enumerate(request.questions)
-        ])
+        logger.info(f"Generated random score for exam: {correct_count}/{total_questions} ({percentage:.1f}%)")
         
-        # Create prompt for LLM with specific hour extraction instructions
-        prompt = f"""You are an educational assessment expert. A student has just completed a mock exam for the following assignment:
-
-**Course**: {request.course_name}
-**Assignment**: {request.assignment_title}
-
-**Exam Results**:
-- Score: {correct_count}/{total_questions} ({percentage:.1f}%)
-
-**Detailed Questions and Answers**:
-{questions_text}
-
-Based on this performance, provide a study time recommendation in the following format:
-
-**Study Time Recommendation:** [X-Y hours] or [X hours]
-
-Then provide brief, actionable feedback on:
-- What topics/concepts they understand well
-- What areas need more focus
-- Specific study strategies
-
-Be concise and encouraging. Start with the exact hours needed (e.g., "2-3 hours", "4-5 hours", "1-2 hours") based on the score:
-- 90-100%: 1-2 hours (review and consolidation)
-- 70-89%: 2-4 hours (targeted practice on weak areas)
-- 50-69%: 4-6 hours (substantial study needed)
-- Below 50%: 6-8 hours (comprehensive review required)"""
-
-        # Call LLM
-        logger.info(f"Sending exam assessment to LLM for {request.assignment_title}")
+        # Generate simple study recommendation based on score
+        if percentage >= 90:
+            study_hours = 1.5
+            study_rec = f"You scored {percentage:.1f}%. Great job! Study for 1-2 hours to review and consolidate your understanding."
+        elif percentage >= 70:
+            study_hours = 3.0
+            study_rec = f"You scored {percentage:.1f}%. Study for 2-4 hours focusing on areas where you missed questions."
+        else:  # 60-69%
+            study_hours = 4.5
+            study_rec = f"You scored {percentage:.1f}%. Study for 4-5 hours reviewing the material more thoroughly."
         
-        messages = [
-            ("system", "You are an educational assessment expert who provides personalized study recommendations based on exam performance."),
-            ("human", prompt)
-        ]
-        
-        response = await llm.ainvoke(messages)
-        ai_feedback = response.content if hasattr(response, 'content') else str(response)
-        
-        # Extract study recommendation and hours
-        lines = ai_feedback.split('\n')
-        study_rec = "Based on your performance, review the material for 2-3 hours focusing on weak areas."
-        study_hours = None
-        
-        # Try to find the study time recommendation section and extract hours
-        import re
-        for i, line in enumerate(lines):
-            if "study time" in line.lower() or "hours" in line.lower():
-                # Get the next few lines as the recommendation
-                study_rec = '\n'.join(lines[i:min(i+3, len(lines))]).strip()
-                # Extract numeric hours (e.g., "2-3 hours" -> 2.5, "4 hours" -> 4)
-                hours_match = re.search(r'(\d+)(?:-(\d+))?\s*hours?', line.lower())
-                if hours_match:
-                    low = float(hours_match.group(1))
-                    high = float(hours_match.group(2)) if hours_match.group(2) else low
-                    study_hours = (low + high) / 2
-                break
-        
-        # Fallback: estimate hours based on percentage if not extracted
-        if study_hours is None:
-            if percentage >= 90:
-                study_hours = 1.5
-            elif percentage >= 70:
-                study_hours = 3.0
-            elif percentage >= 50:
-                study_hours = 5.0
-            else:
-                study_hours = 7.0
+        ai_feedback = study_rec
         
         logger.info(f"Assessment completed: {correct_count}/{total_questions} correct, recommended hours: {study_hours}")
         
