@@ -90,7 +90,7 @@ class ExecutorAgent:
         try:
             task_prompt = CONTEXT_UPDATE_AND_ASSESS_TASK_PROMPT.format(
                 user_id=user_id,
-                auto_schedule=auto_schedule
+                auto_schedule_status='ENABLED' if auto_schedule else 'DISABLED'
             )
 
             tools = [run_context_update, get_unassessed_assignments, assess_assignment, run_scheduler_workflow]

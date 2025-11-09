@@ -76,53 +76,53 @@ def create_mock_assignments(course_ids: List[int]) -> List[int]:
             # RL Course assignments
             Assignment(
                 course_id=course_ids[0],
-                title="Markov Decision Processes - Implementation",
-                description_short="Implement value iteration and policy iteration for gridworld MDPs",
-                due_at=now + timedelta(days=14),
-                lms_link="https://brightspace.gatech.edu/assignment/1",
-                lms_assignment_id="rl_assignment_1",
+                title="[MOCK DB] Assignment 1: MDP Policy Evaluation",
+                description_short="Implement policy evaluation and iteration for gridworld MDPs using dynamic programming",
+                due_at=now + timedelta(days=7),
+                lms_link="https://brightspace.gatech.edu/assignment/old1",
+                lms_assignment_id="rl_assignment_old_1",
                 weight_percentage=15.0,
                 max_points=100.0,
             ),
             Assignment(
                 course_id=course_ids[0],
-                title="Q-Learning and Deep RL Project",
-                description_short="Train a DQN agent on Atari games and analyze performance",
-                due_at=now + timedelta(days=28),
-                lms_link="https://brightspace.gatech.edu/assignment/2",
-                lms_assignment_id="rl_assignment_2",
+                title="[MOCK DB] Project 2: Q-Learning Implementation",
+                description_short="Implement tabular Q-learning for CartPole environment",
+                due_at=now + timedelta(days=21),
+                lms_link="https://brightspace.gatech.edu/assignment/old2",
+                lms_assignment_id="rl_assignment_old_2",
                 weight_percentage=25.0,
                 max_points=120.0,
             ),
             # ML Course assignments
             Assignment(
                 course_id=course_ids[1],
-                title="Supervised Learning Analysis",
-                description_short="Compare decision trees, neural nets, boosting, SVM, and kNN on two datasets",
-                due_at=now + timedelta(days=21),
-                lms_link="https://brightspace.gatech.edu/assignment/3",
-                lms_assignment_id="ml_assignment_1",
+                title="[MOCK DB] Assignment 3: Classification Algorithms",
+                description_short="Compare naive Bayes, logistic regression, and decision trees on UCI datasets",
+                due_at=now + timedelta(days=14),
+                lms_link="https://brightspace.gatech.edu/assignment/old3",
+                lms_assignment_id="ml_assignment_old_1",
                 weight_percentage=20.0,
                 max_points=100.0,
             ),
             Assignment(
                 course_id=course_ids[1],
-                title="Randomized Optimization",
-                description_short="Implement and analyze genetic algorithms, simulated annealing, and MIMIC",
-                due_at=now + timedelta(days=35),
-                lms_link="https://brightspace.gatech.edu/assignment/4",
-                lms_assignment_id="ml_assignment_2",
+                title="[MOCK DB] Project 4: Neural Network Training",
+                description_short="Build and train a multi-layer perceptron from scratch using backpropagation",
+                due_at=now + timedelta(days=28),
+                lms_link="https://brightspace.gatech.edu/assignment/old4",
+                lms_assignment_id="ml_assignment_old_2",
                 weight_percentage=20.0,
                 max_points=100.0,
             ),
             # CV Course assignments
             Assignment(
                 course_id=course_ids[2],
-                title="Image Filtering and Hybrid Images",
-                description_short="Implement Gaussian and Laplacian pyramids, create hybrid images",
-                due_at=now + timedelta(days=10),
-                lms_link="https://brightspace.gatech.edu/assignment/5",
-                lms_assignment_id="cv_assignment_1",
+                title="[MOCK DB] Assignment 5: Edge Detection",
+                description_short="Implement Canny edge detector and compare with Sobel and Prewitt operators",
+                due_at=now + timedelta(days=5),
+                lms_link="https://brightspace.gatech.edu/assignment/old5",
+                lms_assignment_id="cv_assignment_old_1",
                 weight_percentage=10.0,
                 max_points=80.0,
             ),
@@ -296,8 +296,12 @@ def create_mock_user_assignments(user_id: int, assignment_ids: List[int]) -> Lis
         return ua_ids
 
 
-def populate_mock_data() -> None:
-    """Populate the database with complete mock data."""
+def populate_mock_data() -> dict:
+    """Populate the database with complete mock data.
+    
+    Returns:
+        Dictionary with counts of created entities
+    """
     print("\n" + "=" * 60)
     print("Populating database with mock data...")
     print("=" * 60 + "\n")
@@ -310,13 +314,22 @@ def populate_mock_data() -> None:
     course_ids = create_mock_courses(user_id)
     assignment_ids = create_mock_assignments(course_ids)
     create_mock_assessments(assignment_ids)
-    create_mock_user_assignments(user_id, assignment_ids)
+    ua_ids = create_mock_user_assignments(user_id, assignment_ids)
     
     print("\n" + "=" * 60)
     print("[OK] Mock data population complete!")
     print("=" * 60)
     print(f"\nDatabase location: {get_db_session}")
     print("\nYou can now query the database to verify the data.")
+    
+    # Return stats
+    return {
+        "users": 1,
+        "courses": len(course_ids),
+        "assignments": len(assignment_ids),
+        "assessments": 4,  # We create 4 assessments (indices 0, 1, 2, 4)
+        "user_assignments": len(ua_ids),
+    }
 
 
 def clear_all_data() -> None:

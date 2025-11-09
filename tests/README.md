@@ -65,6 +65,43 @@ poetry run python tests/test_e2e_rag.py
 
 ---
 
+### `test_e2e_context_update_flow.py` ⭐ **NEW**
+**Complete end-to-end test of the autonomous context update pipeline.**
+
+**What it tests:**
+- Context Updater syncing from Brightspace (mock LMS)
+- Data storage in SQLite database (courses, assignments)
+- Content indexing in ChromaDB vector database
+- RAG retrieval for assignment context
+- Assignment Assessment workflow execution
+- Assessment saving to database with structured data
+
+**Run:**
+```bash
+poetry run python tests/test_e2e_context_update_flow.py
+```
+
+**Requirements:** OPENAI_API_KEY in `.env`
+
+**Output:** Complete autonomous pipeline demonstration showing:
+1. Context update from Brightspace (mock)
+2. Database synchronization (SQLite + ChromaDB)
+3. RAG retrieval verification
+4. Assignment assessment generation
+5. Database persistence verification
+6. Detailed assessment summary with:
+   - Effort estimates (PERT)
+   - Difficulty and risk scores
+   - Milestones breakdown
+   - Prerequisite topics
+   - Deliverables list
+   - Blocking dependencies
+
+**This test simulates what happens when the system autonomously detects
+new assignments from the LMS and automatically assesses them.**
+
+---
+
 ## Running All Tests
 
 ```bash
@@ -72,6 +109,7 @@ poetry run python tests/test_e2e_rag.py
 poetry run python tests/test_vector_simple.py
 poetry run python tests/test_assessment.py  
 poetry run python tests/test_e2e_rag.py
+poetry run python tests/test_e2e_context_update_flow.py  # NEW - Full pipeline test
 ```
 
 ## Test Data

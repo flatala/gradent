@@ -17,6 +17,10 @@ from agents.shared.workflow_tools import (
     generate_suggestions,
     run_exam_api_workflow,
     log_progress_update,
+    get_user_assignments,
+    get_user_courses,
+    get_assignment_assessment,
+    get_study_progress,
 )
 from .prompts import SYSTEM_PROMPT
 
@@ -111,6 +115,10 @@ def create_main_agent(config: Configuration) -> AgentExecutor:
         generate_suggestions,
         run_exam_api_workflow,
         log_progress_update,
+        get_user_assignments,
+        get_user_courses,
+        get_assignment_assessment,
+        get_study_progress,
     ]
 
     # Create prompt template
