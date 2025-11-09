@@ -32,10 +32,22 @@ import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
 import 'katex/dist/katex.min.css';
 
+const CONSENT_STORAGE_KEY = "gradent_services_consent";
+
 const Dashboard = () => {
   const { toast } = useToast();
   const [showConsent, setShowConsent] = useState(false);
-  const [isConnected, setIsConnected] = useState(false);
+
+  // Initialize isConnected from localStorage
+  const [isConnected, setIsConnected] = useState(() => {
+    try {
+      const stored = localStorage.getItem(CONSENT_STORAGE_KEY);
+      return stored === "true";
+    } catch {
+      return false;
+    }
+  });
+
   const [currentView, setCurrentView] = useState<
     "dashboard" | "results" | "schedule" | "calendar"
   >("dashboard");
@@ -87,6 +99,13 @@ const Dashboard = () => {
     setShowConsent(false);
     setIsConnected(true);
     setSyncStatus("syncing");
+
+    // Cache consent in localStorage so modal doesn't show again
+    try {
+      localStorage.setItem(CONSENT_STORAGE_KEY, "true");
+    } catch (error) {
+      console.error("Failed to save consent to localStorage:", error);
+    }
 
     setTimeout(() => {
       setSyncStatus("synced");
