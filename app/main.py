@@ -14,7 +14,9 @@ from typing import Any, Dict, List, Literal, Optional
 from dotenv import load_dotenv
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
 from langchain_core.messages import AIMessage, HumanMessage
+from langchain_core.callbacks import BaseCallbackHandler
 from pydantic import BaseModel, Field
 
 from agents.chat_agent.agent import MainAgent
@@ -86,6 +88,54 @@ except ValueError as exc:  # pragma: no cover - configuration handled at runtime
 
 _CHAT_SESSIONS: Dict[str, MainAgent] = {}
 _CHAT_LOCK = asyncio.Lock()
+
+
+class ToolCallTracker(BaseCallbackHandler):
+    """Callback handler to track tool calls during agent execution."""
+    
+    def __init__(self):
+        self.tool_calls: List[Dict[str, Any]] = []
+        self.tool_map = {
+            "run_scheduler_workflow": {"type": "scheduler", "name": "Schedule Meeting"},
+            "assess_assignment": {"type": "assessment", "name": "Assess Assignment"},
+            "generate_suggestions": {"type": "suggestions", "name": "Generate Suggestions"},
+            "run_exam_api_workflow": {"type": "exam_generation", "name": "Generate Exam"},
+        }
+    
+    def on_tool_start(self, serialized: Dict[str, Any], input_str: str, **kwargs: Any) -> None:
+        """Called when a tool starts executing."""
+        tool_name = serialized.get("name", "unknown")
+        if tool_name in self.tool_map:
+            tool_info = self.tool_map[tool_name]
+            self.tool_calls.append({
+                "tool_name": tool_info["name"],
+                "tool_type": tool_info["type"],
+                "status": "started",
+                "timestamp": datetime.utcnow().isoformat(),
+            })
+            logger.info(f"TOOL STARTED: {tool_name}")
+    
+    def on_tool_end(self, output: str, **kwargs: Any) -> None:
+        """Called when a tool finishes executing."""
+        if self.tool_calls:
+            # Update the last tool call
+            last_tool = self.tool_calls[-1]
+            if last_tool["status"] == "started":
+                last_tool["status"] = "completed"
+                try:
+                    last_tool["result"] = json.loads(output) if output else {}
+                except json.JSONDecodeError:
+                    last_tool["result"] = {"message": output}
+                logger.info(f"TOOL COMPLETED: {last_tool['tool_name']}")
+    
+    def on_tool_error(self, error: Exception, **kwargs: Any) -> None:
+        """Called when a tool encounters an error."""
+        if self.tool_calls:
+            last_tool = self.tool_calls[-1]
+            if last_tool["status"] == "started":
+                last_tool["status"] = "failed"
+                last_tool["error"] = str(error)
+                logger.error(f"TOOL FAILED: {last_tool['tool_name']} - {error}")
 
 
 def _require_agent_config() -> Configuration:
@@ -189,6 +239,16 @@ class ChatHistoryMessage(BaseModel):
     content: str
 
 
+class ToolCallInfo(BaseModel):
+    """Information about a tool that was called during agent execution."""
+    tool_name: str
+    tool_type: Literal["scheduler", "assessment", "suggestions", "exam_generation"]
+    status: Literal["started", "completed", "failed"]
+    result: Optional[Dict[str, Any]] = None
+    error: Optional[str] = None
+    timestamp: str
+
+
 class ChatRequest(BaseModel):
     session_id: str = Field(..., description="Client-defined session identifier")
     message: str = Field(..., description="User message for the agent")
@@ -199,6 +259,7 @@ class ChatResponse(BaseModel):
     session_id: str
     response: str
     history: List[ChatHistoryMessage]
+    tool_calls: List[ToolCallInfo] = Field(default_factory=list, description="Tools that were called during this interaction")
 
 
 class ChatHistoryResponse(BaseModel):
@@ -378,10 +439,11 @@ async def get_chat_history(session_id: str) -> ChatHistoryResponse:
     async with _CHAT_LOCK:
         agent = _CHAT_SESSIONS.get(session_id)
     if agent is None:
-        raise HTTPException(status_code=404, detail="Session not found")
-    history = [
-        ChatHistoryMessage(**entry) for entry in _serialize_chat_history(agent)
-    ]
+        history: List[ChatHistoryMessage] = []
+    else:
+        history = [
+            ChatHistoryMessage(**entry) for entry in _serialize_chat_history(agent)
+        ]
     return ChatHistoryResponse(session_id=session_id, history=history)
 
 
@@ -407,11 +469,30 @@ async def chat_with_agent(payload: ChatRequest) -> ChatResponse:
             agent = MainAgent(config)
             _CHAT_SESSIONS[payload.session_id] = agent
 
-    response_text = await agent.chat(payload.message)
+    # Create callback handler to track tool calls
+    tracker = ToolCallTracker()
+    runnable_config = {"callbacks": [tracker]}
+    
+    logger.info(f"CHAT REQUEST: session={payload.session_id}, message='{payload.message[:50]}...'")
+    
+    response_text = await agent.chat(payload.message, config=runnable_config)
     history = [
         ChatHistoryMessage(**entry) for entry in _serialize_chat_history(agent)
     ]
-    return ChatResponse(session_id=payload.session_id, response=response_text, history=history)
+    
+    # Convert tool calls to Pydantic models
+    tool_call_info = [ToolCallInfo(**tc) for tc in tracker.tool_calls]
+    
+    logger.info(f"CHAT RESPONSE: {len(tool_call_info)} tool calls detected")
+    for tc in tool_call_info:
+        logger.info(f"  - {tc.tool_name} ({tc.tool_type}): {tc.status}")
+    
+    return ChatResponse(
+        session_id=payload.session_id,
+        response=response_text,
+        history=history,
+        tool_calls=tool_call_info,
+    )
 
 
 # --------------------------------------------------------------------------- #
@@ -560,6 +641,71 @@ async def schedule_event(payload: ScheduleRequest) -> ScheduleResponse:
         success=False,
         error=parsed.get("reason") or "Scheduling failed.",
         data=parsed,
+    )
+
+
+@app.get("/api/workflow/stream/{workflow_type}")
+async def stream_workflow(workflow_type: str, session_id: str = "default"):
+    """Stream workflow progress via Server-Sent Events (SSE).
+    
+    Args:
+        workflow_type: Type of workflow (scheduler, suggestions, assessment, etc.)
+        session_id: Session identifier for tracking
+    
+    Returns:
+        StreamingResponse with SSE events
+    """
+    async def event_generator():
+        """Generate SSE events for workflow progress."""
+        # Send initial connection event
+        yield f"data: {json.dumps({'type': 'connected', 'workflow_type': workflow_type})}\n\n"
+        
+        # Simulate workflow steps (in production, this would hook into LangGraph callbacks)
+        if workflow_type == "scheduler":
+            steps = [
+                {"id": "check_auth", "name": "Checking Calendar Access", "status": "in_progress"},
+                {"id": "check_auth", "name": "Checking Calendar Access", "status": "completed", "details": "Calendar authenticated"},
+                {"id": "initialize", "name": "Parsing Meeting Requirements", "status": "in_progress"},
+                {"id": "initialize", "name": "Parsing Meeting Requirements", "status": "completed"},
+                {"id": "agent", "name": "Analyzing Schedule", "status": "in_progress"},
+                {"id": "agent", "name": "Analyzing Schedule", "status": "completed", "details": "Found available slots"},
+                {"id": "create_event", "name": "Creating Calendar Event", "status": "in_progress"},
+                {"id": "create_event", "name": "Creating Calendar Event", "status": "completed"},
+                {"id": "finalize", "name": "Finalizing", "status": "completed"},
+            ]
+            
+            for step in steps:
+                await asyncio.sleep(0.5)  # Simulate processing time
+                event_data = {
+                    "type": "step",
+                    "timestamp": datetime.utcnow().isoformat(),
+                    **step
+                }
+                yield f"data: {json.dumps(event_data)}\n\n"
+            
+            # Send completion event with result
+            result = {
+                "type": "complete",
+                "result": {
+                    "event_id": f"evt-{int(datetime.utcnow().timestamp())}",
+                    "meeting_name": "Study Session",
+                    "start_time": datetime.utcnow().isoformat(),
+                    "event_link": "https://calendar.google.com",
+                }
+            }
+            yield f"data: {json.dumps(result)}\n\n"
+        
+        # Send done event
+        yield f"data: {json.dumps({'type': 'done'})}\n\n"
+    
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",  # Disable nginx buffering
+        },
     )
 
 

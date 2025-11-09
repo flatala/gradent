@@ -10,6 +10,15 @@ export interface ChatHistoryMessage {
   content: string;
 }
 
+export interface ToolCallInfo {
+  tool_name: string;
+  tool_type: "scheduler" | "assessment" | "suggestions" | "exam_generation";
+  status: "started" | "completed" | "failed";
+  result?: Record<string, any>;
+  error?: string;
+  timestamp: string;
+}
+
 export interface ChatRequestPayload {
   session_id: string;
   message: string;
@@ -20,6 +29,7 @@ export interface ChatResponsePayload {
   session_id: string;
   response: string;
   history: ChatHistoryMessage[];
+  tool_calls: ToolCallInfo[];
 }
 
 export interface ChatHistoryResponsePayload {
@@ -154,6 +164,16 @@ export interface AssignmentProgressResponsePayload {
 export interface ExamResponsePayload {
   success: boolean;
   questions?: string | null;
+  error?: string | null;
+  uploaded_files?: string[] | null;
+}
+
+export interface SimpleStatusResponse {
+  status: string;
+  message: string;
+}
+
+
   error?: string | null;
   uploaded_files?: string[] | null;
 }

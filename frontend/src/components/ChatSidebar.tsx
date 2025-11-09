@@ -10,6 +10,7 @@ import {
   SidebarTrigger,
 } from "@/components/ui/sidebar";
 import { api } from "@/lib/api";
+import { useWorkflow } from "@/contexts/WorkflowContext";
 
 type Message = { role: "user" | "assistant"; content: string };
 
@@ -19,9 +20,14 @@ export function ChatSidebar() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const SESSION_ID = "dashboard-assistant";
+  
+  const { addToolCall, completeToolCall, failToolCall, clearToolCalls } = useWorkflow();
 
   useEffect(() => {
     let mounted = true;
+    
+    // Clear any previous tool calls when component mounts
+    clearToolCalls();
 
     const bootstrap = async () => {
       try {
@@ -74,6 +80,34 @@ export function ChatSidebar() {
         message: userText,
       });
       setMessages(response.history);
+      
+      // ONLY process tool calls if the backend actually returned some
+      console.log("Backend response tool_calls:", response.tool_calls);
+      
+      if (response.tool_calls && Array.isArray(response.tool_calls) && response.tool_calls.length > 0) {
+        console.log(`Processing ${response.tool_calls.length} tool calls from backend`);
+        
+        response.tool_calls.forEach((toolCall, index) => {
+          console.log(`Tool call ${index + 1}:`, toolCall);
+          
+          const toolCallId = addToolCall({
+            type: toolCall.tool_type,
+            status: toolCall.status === "started" ? "in_progress" : toolCall.status,
+            title: toolCall.tool_name,
+            description: toolCall.status === "started" ? "Processing..." : undefined,
+          });
+          
+          // If tool is completed or failed, update immediately
+          if (toolCall.status === "completed" && toolCall.result) {
+            completeToolCall(toolCallId, toolCall.result);
+          } else if (toolCall.status === "failed" && toolCall.error) {
+            failToolCall(toolCallId, toolCall.error);
+          }
+        });
+      } else {
+        console.log("No tool calls in backend response");
+      }
+      
     } catch (err) {
       const fallback = (err as Error).message ?? "Failed to reach the assistant.";
       setMessages([
