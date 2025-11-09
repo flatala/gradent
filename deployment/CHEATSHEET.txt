@@ -1,0 +1,243 @@
+╔═══════════════════════════════════════════════════════════════════╗
+║                   GRADENT DEPLOYMENT CHEAT SHEET                  ║
+╚═══════════════════════════════════════════════════════════════════╝
+
+┌─────────────────────────────────────────────────────────────────┐
+│ 🚀 QUICK START                                                   │
+└─────────────────────────────────────────────────────────────────┘
+
+1. Configure:
+   cp .env.example .env
+   nano .env  # Add OPENAI_API_KEY
+
+2. Deploy:
+   chmod +x deployment/deploy.sh
+   ./deployment/deploy.sh
+
+3. Access:
+   http://your-vm-ip/
+   http://your-vm-ip:8000/docs
+
+┌─────────────────────────────────────────────────────────────────┐
+│ 📦 DOCKER COMPOSE COMMANDS                                       │
+└─────────────────────────────────────────────────────────────────┘
+
+Start services:         docker compose up -d
+Stop services:          docker compose down
+View logs:              docker compose logs -f
+Restart:                docker compose restart
+Rebuild:                docker compose up -d --build
+Status:                 docker compose ps
+Stats:                  docker stats
+
+┌─────────────────────────────────────────────────────────────────┐
+│ 🛠️ MAKEFILE SHORTCUTS                                            │
+└─────────────────────────────────────────────────────────────────┘
+
+make up                 Start all services
+make down               Stop all services
+make logs               View all logs
+make logs-backend       View backend logs only
+make logs-frontend      View frontend logs only
+make restart            Restart services
+make build              Build images
+make setup              Initialize database
+make status             Show container status
+make health             Check health
+make backup             Backup data
+make shell-backend      Open backend shell
+make update             Pull & rebuild
+make help               Show all commands
+
+┌─────────────────────────────────────────────────────────────────┐
+│ 🔧 COMMON TASKS                                                  │
+└─────────────────────────────────────────────────────────────────┘
+
+Initialize DB:
+  docker compose exec backend python scripts/setup_all.py
+
+Rebuild DB:
+  docker compose exec backend python scripts/rebuild_database.py
+
+Run migrations:
+  docker compose exec backend python scripts/migrate_database.py
+
+Shell access:
+  docker compose exec backend bash
+  docker compose exec frontend sh
+
+Check environment:
+  docker compose exec backend env | grep OPENAI
+
+┌─────────────────────────────────────────────────────────────────┐
+│ 🌐 ENDPOINTS                                                     │
+└─────────────────────────────────────────────────────────────────┘
+
+Frontend:               http://localhost/
+Backend API:            http://localhost:8000
+API Documentation:      http://localhost:8000/docs
+Health Check:           http://localhost:8000/health
+
+Production:
+Frontend:               https://yourdomain.com/
+Backend API:            https://yourdomain.com/api
+API Documentation:      https://yourdomain.com/api/docs
+
+┌─────────────────────────────────────────────────────────────────┐
+│ 📊 MONITORING                                                    │
+└─────────────────────────────────────────────────────────────────┘
+
+Container status:       docker compose ps
+Resource usage:         docker stats
+Disk usage:             df -h
+Docker disk:            docker system df
+Logs (live):            docker compose logs -f
+Logs (last 100):        docker compose logs --tail=100
+
+┌─────────────────────────────────────────────────────────────────┐
+│ 🔒 SECURITY                                                      │
+└─────────────────────────────────────────────────────────────────┘
+
+Firewall setup:
+  sudo ufw allow 22/tcp
+  sudo ufw allow 80/tcp
+  sudo ufw allow 443/tcp
+  sudo ufw enable
+
+SSL Certificate (Let's Encrypt):
+  sudo certbot certonly --standalone -d yourdomain.com
+  
+Deploy with SSL:
+  docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+
+┌─────────────────────────────────────────────────────────────────┐
+│ 💾 BACKUP & RESTORE                                             │
+└─────────────────────────────────────────────────────────────────┘
+
+Backup:
+  tar -czf backup-$(date +%Y%m%d).tar.gz data/ logs/
+  # Or use: make backup
+
+Restore:
+  tar -xzf backup-20241109.tar.gz
+  docker compose restart
+
+Download backup:
+  scp user@vm-ip:~/gradent/backup-*.tar.gz ./
+
+┌─────────────────────────────────────────────────────────────────┐
+│ 🐛 TROUBLESHOOTING                                              │
+└─────────────────────────────────────────────────────────────────┘
+
+View errors:
+  docker compose logs --tail=50
+
+Container won't start:
+  docker compose down
+  docker compose up -d --build
+
+Port conflict:
+  sudo netstat -tulpn | grep :80
+  # Edit docker-compose.yml ports
+
+Reset everything:
+  docker compose down -v
+  docker system prune -a
+  docker compose up -d --build
+
+Out of space:
+  docker system prune -a
+  docker volume prune
+
+Database issues:
+  docker compose exec backend python scripts/rebuild_database.py
+
+┌─────────────────────────────────────────────────────────────────┐
+│ 📁 FILE LOCATIONS                                                │
+└─────────────────────────────────────────────────────────────────┘
+
+Configuration:          .env
+Database:               data/study_assistant.db
+Vector DB:              data/vector_db/
+Logs:                   logs/
+Uploads:                uploads/
+Nginx Config:           deployment/nginx.conf
+Google Credentials:     credentials.json
+
+┌─────────────────────────────────────────────────────────────────┐
+│ 🔄 UPDATE WORKFLOW                                              │
+└─────────────────────────────────────────────────────────────────┘
+
+1. Backup data:         make backup
+2. Pull changes:        git pull
+3. Rebuild:             docker compose up -d --build
+4. Check status:        docker compose ps
+5. Test:                curl http://localhost:8000/health
+
+Or simply:              make update
+
+┌─────────────────────────────────────────────────────────────────┐
+│ ⚡ PERFORMANCE TIPS                                              │
+└─────────────────────────────────────────────────────────────────┘
+
+Check resources:        docker stats
+Clean Docker:           docker system prune -a
+Check disk:             df -h
+Monitor logs:           docker compose logs -f | grep ERROR
+
+Resource limits (add to docker-compose.yml):
+  services:
+    backend:
+      mem_limit: 1g
+      cpus: '1'
+
+┌─────────────────────────────────────────────────────────────────┐
+│ 📚 DOCUMENTATION FILES                                           │
+└─────────────────────────────────────────────────────────────────┘
+
+deployment/QUICKSTART.md        → Fast deployment guide
+deployment/DEPLOYMENT_GUIDE.md  → Complete walkthrough
+deployment/ARCHITECTURE.md      → System architecture
+deployment/SUMMARY.md           → What was created
+deployment/README.md            → Deployment overview
+Makefile                        → Command reference
+
+┌─────────────────────────────────────────────────────────────────┐
+│ 🔑 REQUIRED ENVIRONMENT VARIABLES                                │
+└─────────────────────────────────────────────────────────────────┘
+
+OPENAI_API_KEY=sk-...           REQUIRED
+
+Optional:
+OPENAI_BASE_URL=...
+DISCORD_WEBHOOK_URL=...
+GOOGLE_CLIENT_ID=...
+GOOGLE_CLIENT_SECRET=...
+SUGGESTION_POLL_SECONDS=30
+
+┌─────────────────────────────────────────────────────────────────┐
+│ ✅ HEALTH CHECKS                                                 │
+└─────────────────────────────────────────────────────────────────┘
+
+Backend:    curl http://localhost:8000/health
+Frontend:   curl http://localhost/
+Both:       make health
+Status:     docker compose ps
+
+Expected output:
+  STATUS: Up (healthy)
+
+┌─────────────────────────────────────────────────────────────────┐
+│ 📞 QUICK SUPPORT                                                 │
+└─────────────────────────────────────────────────────────────────┘
+
+Check logs first:       docker compose logs -f
+Review guide:           cat deployment/DEPLOYMENT_GUIDE.md
+Test health:            make health
+Verify config:          cat .env
+Check network:          docker network ls
+
+╔═══════════════════════════════════════════════════════════════════╗
+║  Print this file and keep it handy for quick reference!          ║
+║  File: deployment/CHEATSHEET.txt                                  ║
+╚═══════════════════════════════════════════════════════════════════╝
