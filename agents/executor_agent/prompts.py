@@ -26,7 +26,7 @@ Guidelines:
 CONTEXT_UPDATE_AND_ASSESS_TASK_PROMPT = """Task: Update context from LMS, assess new assignments, and schedule study sessions
 
 You have been given a user_id: {user_id}
-Auto-scheduling is {'ENABLED' if '{auto_schedule}' == 'True' else 'DISABLED'}
+Auto-scheduling is {auto_schedule_status}
 
 Your objective:
 1. Run context update to sync courses and assignments from Brightspace LMS
@@ -38,8 +38,9 @@ Your objective:
 
 Available tools:
 - run_context_update: Syncs data from LMS to database and vector DB
+- get_unassessed_assignments: Gets list of assignments without assessments
 - assess_assignment: Analyzes an assignment and generates effort estimates
-- schedule_study_session: Creates a calendar event for studying
+- run_scheduler_workflow: Creates a calendar event for study sessions
 
 Execute this task autonomously. Make intelligent decisions about:
 - How many study sessions to create based on effort estimates

@@ -234,7 +234,10 @@ async def assess_assignment(
         course_name=course_name,
     )
     
-    initial_state = AssessmentState(assignment_info=assignment_info)
+    initial_state = AssessmentState(
+        assignment_info=assignment_info,
+        user_id=resolved_user_id
+    )
     
     try:
         result = await assessment_graph.ainvoke(initial_state, config)
@@ -778,8 +781,8 @@ async def get_unassessed_assignments(user_id: int) -> str:
                             "assignment_id": assignment.id,
                             "course_id": assignment.course_id,
                             "title": assignment.title,
-                            "description": assignment.description or "",
-                            "due_date": assignment.due_date.isoformat() if assignment.due_date else None,
+                            "description": assignment.description_short or "",
+                            "due_date": assignment.due_at.isoformat() if assignment.due_at else None,
                         })
 
         if _logger:
