@@ -297,7 +297,7 @@ class ToolCallInfo(BaseModel):
     tool_name: str
     tool_type: Literal["scheduler", "assessment", "suggestions", "exam_generation", "progress_tracking", "context_update"]
     status: Literal["started", "completed", "failed"]
-    result: Optional[Dict[str, Any]] = None
+    result: Optional[Any] = None  # Changed from Dict to Any to support lists and other types
     error: Optional[str] = None
     timestamp: str
 

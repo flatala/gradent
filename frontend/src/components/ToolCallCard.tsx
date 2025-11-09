@@ -447,23 +447,61 @@ const AssessmentResult = ({ result }: { result: any }) => {
 
 // Result component for suggestions
 const SuggestionsResult = ({ result }: { result: any }) => {
-  const suggestions = result.suggestions || result.items || [];
+  console.log("SuggestionsResult - Raw result:", result);
+  console.log("SuggestionsResult - Result type:", typeof result, Array.isArray(result));
+  
+  // Handle different result structures
+  let suggestions = [];
+  
+  if (Array.isArray(result)) {
+    // Result is directly an array
+    suggestions = result;
+  } else if (result && typeof result === 'object') {
+    // Try different field names
+    suggestions = result.suggestions || result.items || result.suggestion_list || [];
+  }
+  
+  console.log("SuggestionsResult - Parsed suggestions:", suggestions);
+  
+  // If we got a text-based response instead of structured data, show a message
+  if (suggestions.length === 0 && result && typeof result === 'object' && result.message) {
+    return (
+      <div className="space-y-2">
+        <p className="text-xs font-medium text-green-600">✅ Suggestions Generated</p>
+        <p className="text-xs text-muted-foreground">{result.message}</p>
+      </div>
+    );
+  }
+  
   return (
     <div className="space-y-2">
       <p className="text-xs text-muted-foreground">
         Generated {suggestions.length} suggestion{suggestions.length !== 1 ? "s" : ""}
       </p>
-      {suggestions.slice(0, 3).map((suggestion: any, idx: number) => (
-        <div key={idx} className="text-xs p-2 bg-muted/50 rounded">
-          <p className="font-medium">{suggestion.title || suggestion.message}</p>
-          {suggestion.message && suggestion.title && (
-            <p className="text-muted-foreground mt-0.5">{suggestion.message}</p>
+      {suggestions.length > 0 ? (
+        <>
+          {suggestions.slice(0, 3).map((suggestion: any, idx: number) => (
+            <div key={idx} className="text-xs p-2 bg-muted/50 rounded">
+              <p className="font-medium">{suggestion.title || suggestion.message || suggestion.text || "Suggestion"}</p>
+              {suggestion.message && suggestion.title && (
+                <p className="text-muted-foreground mt-0.5">{suggestion.message}</p>
+              )}
+              {suggestion.priority && (
+                <Badge variant="secondary" className="mt-1 text-[10px]">
+                  Priority: {suggestion.priority}
+                </Badge>
+              )}
+            </div>
+          ))}
+          {suggestions.length > 3 && (
+            <p className="text-xs text-muted-foreground italic">
+              +{suggestions.length - 3} more suggestions
+            </p>
           )}
-        </div>
-      ))}
-      {suggestions.length > 3 && (
+        </>
+      ) : (
         <p className="text-xs text-muted-foreground italic">
-          +{suggestions.length - 3} more suggestions
+          Suggestions delivered in chat response
         </p>
       )}
     </div>
