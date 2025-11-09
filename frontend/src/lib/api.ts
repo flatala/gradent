@@ -30,11 +30,11 @@ const jsonHeaders = {
 };
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
-  // Merge headers, ensuring Content-Type is set for requests with body
-  const headers = {
-    ...jsonHeaders,
-    ...options.headers,
-  };
+  // Only add JSON headers if not sending FormData
+  // FormData needs browser to set Content-Type with boundary automatically
+  const headers = options.body instanceof FormData 
+    ? { ...options.headers }  // Don't add Content-Type for FormData
+    : { ...jsonHeaders, ...options.headers };  // Add JSON headers for other requests
   
   const response = await fetch(`${API_BASE}${path}`, {
     ...options,

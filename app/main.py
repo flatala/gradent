@@ -1026,15 +1026,18 @@ async def generate_exam(
     question_description: str = Form(..., description="Question requirements"),
     api_key: Optional[str] = Form(None, description="OpenRouter API key"),
     model_name: Optional[str] = Form(None, description="AI model to use"),
-    use_default_pdfs: bool = Form(False, description="Use PDFs from materials folder"),
+    use_default_pdfs: str = Form("false", description="Use PDFs from materials folder"),
 ):
     """Generate exam questions from uploaded PDF files or default materials."""
     saved_paths: List[str] = []
     temp_files_to_delete: List[str] = []  # Track only temporary uploaded files
     
+    # Convert string to boolean
+    use_defaults = use_default_pdfs.lower() in ("true", "1", "yes")
+    
     try:
         # If using default PDFs, look for PDFs in the project root or materials folder
-        if use_default_pdfs or not files:
+        if use_defaults or not files:
             # Check for PDFs in project root
             project_root = Path(__file__).parent.parent
             pdf_files = list(project_root.glob("*.pdf"))
