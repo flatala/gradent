@@ -765,14 +765,6 @@ const Dashboard = () => {
 
   return (
     <div className="space-y-6">
-      <header className="sticky top-0 z-10 flex h-14 items-center gap-4 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 px-4">
-        <div className="flex-1">
-          <h1 className="text-lg font-semibold bg-gradient-primary bg-clip-text text-transparent">
-            Study Autopilot
-          </h1>
-        </div>
-      </header>
-
       <div className="p-6">
         <div className="max-w-7xl mx-auto">
           {/* Stats Overview */}

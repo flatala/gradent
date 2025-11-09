@@ -36,32 +36,37 @@ const IndexContent = () => {
         <ChatSidebar />
 
         <SidebarInset className="flex-1" style={{ marginRight: isVisible ? '400px' : '0', transition: 'margin-right 0.3s ease' }}>
-          <div className="container mx-auto px-4 py-8">
+          <div className="container mx-auto px-4 pt-4 pb-8">
             {/* Header - Centered */}
-            <div className="mb-8 animate-fade-in">
+            <div className="mb-6 animate-fade-in">
               {/* Tab Navigation - Space Between */}
               <div className="flex justify-between items-center">
-                <div className="flex gap-3">
-                  <Button
-                    onClick={() => setActiveTab("dashboard")}
-                    variant={activeTab === "dashboard" ? "default" : "outline"}
-                    className={
-                      activeTab === "dashboard" ? "bg-gradient-primary shadow-md" : ""
-                    }
-                  >
-                    <BookOpen className="w-4 h-4 mr-2" />
-                    Dashboard
-                  </Button>
-                  <Button
-                    onClick={() => setActiveTab("autonomous")}
-                    variant={activeTab === "autonomous" ? "default" : "outline"}
-                    className={
-                      activeTab === "autonomous" ? "bg-gradient-primary shadow-md" : ""
-                    }
-                  >
-                    <Bot className="w-4 h-4 mr-2" />
-                    Autonomous Mode
-                  </Button>
+                <div className="flex items-center gap-6">
+                  <h1 className="text-2xl font-semibold bg-gradient-primary bg-clip-text text-transparent">
+                    Study Autopilot
+                  </h1>
+                  <div className="flex gap-3">
+                    <Button
+                      onClick={() => setActiveTab("dashboard")}
+                      variant={activeTab === "dashboard" ? "default" : "outline"}
+                      className={
+                        activeTab === "dashboard" ? "bg-gradient-primary shadow-md" : ""
+                      }
+                    >
+                      <BookOpen className="w-4 h-4 mr-2" />
+                      Dashboard
+                    </Button>
+                    <Button
+                      onClick={() => setActiveTab("autonomous")}
+                      variant={activeTab === "autonomous" ? "default" : "outline"}
+                      className={
+                        activeTab === "autonomous" ? "bg-gradient-primary shadow-md" : ""
+                      }
+                    >
+                      <Bot className="w-4 h-4 mr-2" />
+                      Autonomous Mode
+                    </Button>
+                  </div>
                 </div>
                 
                 <Button
