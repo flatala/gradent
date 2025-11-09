@@ -64,7 +64,14 @@ async def run_scheduler_workflow(
         event_description: Additional details for the event (optional)
         attendee_emails: Optional list of attendee emails to coordinate with
         location: Meeting location - physical address or 'Google Meet' (optional)
-        constraints: Optional scheduling preferences (e.g., 'mornings only', 'after 2pm')
+        constraints: IMPORTANT: Include specific day/date information here!
+                    Examples:
+                    - 'on Wednesday' or 'on Friday'
+                    - 'on Monday and Thursday'
+                    - 'next week' or 'tomorrow'
+                    - 'mornings only', 'after 2pm', 'avoid Mondays'
+                    If the user mentions a specific day like "Wednesday" or "Friday",
+                    YOU MUST include it in the constraints parameter!
         user_id: User ID for the scheduler (defaults to 1)
         config: Injected configuration (automatically provided)
 
@@ -103,7 +110,7 @@ async def run_scheduler_workflow(
         duration_minutes=duration_minutes,
         attendee_emails=attendee_emails or [],
         location=location,
-        constraints=constraints,
+        time_constraints=constraints,  # Fixed: was 'constraints', should be 'time_constraints'
     )
 
     # Retry loop for transient errors

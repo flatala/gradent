@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
+import { Card, CardHeader, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
   Calendar,
@@ -8,19 +8,19 @@ import {
   Brain,
   TrendingUp,
   CheckCircle2,
+  Loader2,
+  RefreshCw,
+  Sparkles,
 } from "lucide-react";
-import {
-  SidebarProvider,
-  SidebarInset,
-  SidebarTrigger,
-} from "@/components/ui/sidebar";
-import { ChatSidebar } from "./ChatSidebar";
 import AssignmentCard from "./AssignmentCard";
 import MockExam from "./MockExam";
 import ResultsView from "./ResultsView";
 import ScheduleAdjustment from "./ScheduleAdjustment";
 import ConsentModal from "./ConsentModal";
 import { CalendarSync } from "./CalendarSync";
+import { api } from "@/lib/api";
+import type { SuggestionRecord } from "@/lib/types";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 const mockAssignments: Array<{
   id: string;
@@ -77,6 +77,9 @@ const Dashboard = () => {
     mockAssignments[0],
   );
   const [examResults, setExamResults] = useState<any>(null);
+  const [suggestions, setSuggestions] = useState<SuggestionRecord[]>([]);
+  const [suggestionsLoading, setSuggestionsLoading] = useState(false);
+  const [suggestionsError, setSuggestionsError] = useState<string | null>(null);
 
   const handleConnect = () => {
     setShowConsent(true);
@@ -109,6 +112,52 @@ const Dashboard = () => {
   const handleBackToDashboard = () => {
     setCurrentView("dashboard");
   };
+
+  const fetchSuggestions = useCallback(async () => {
+    setSuggestionsLoading(true);
+    setSuggestionsError(null);
+    try {
+      const response = await api.listSuggestions();
+      setSuggestions(response.suggestions);
+    } catch (err) {
+      setSuggestionsError((err as Error).message);
+    } finally {
+      setSuggestionsLoading(false);
+    }
+  }, []);
+
+  const handleGenerateSuggestions = useCallback(async () => {
+    setSuggestionsLoading(true);
+    setSuggestionsError(null);
+    try {
+      const response = await api.generateSuggestions();
+      setSuggestions(response.suggestions);
+    } catch (err) {
+      setSuggestionsError((err as Error).message);
+    } finally {
+      setSuggestionsLoading(false);
+    }
+  }, []);
+
+  const handleResetSuggestions = useCallback(async () => {
+    setSuggestionsLoading(true);
+    setSuggestionsError(null);
+    try {
+      await api.resetSuggestions({});
+      const response = await api.listSuggestions();
+      setSuggestions(response.suggestions);
+    } catch (err) {
+      setSuggestionsError((err as Error).message);
+    } finally {
+      setSuggestionsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (isConnected && syncStatus === "synced") {
+      fetchSuggestions();
+    }
+  }, [isConnected, syncStatus, fetchSuggestions]);
 
   const renderMainContent = () => {
     if (currentView === "exam") {
@@ -191,6 +240,96 @@ const Dashboard = () => {
                 />
               ))}
             </div>
+
+            <Card className="bg-gradient-card border-border/50">
+              <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <h3 className="text-xl font-semibold">Latest Suggestions</h3>
+                  <p className="text-sm text-muted-foreground">
+                    Personalized study recommendations from the agent.
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={fetchSuggestions}
+                    disabled={suggestionsLoading}
+                  >
+                    <RefreshCw className="mr-2 h-4 w-4" />
+                    Refresh
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleResetSuggestions}
+                    disabled={suggestionsLoading}
+                  >
+                    Reset
+                  </Button>
+                  <Button
+                    size="sm"
+                    onClick={handleGenerateSuggestions}
+                    disabled={suggestionsLoading}
+                  >
+                    <Sparkles className="mr-2 h-4 w-4" />
+                    Generate
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {suggestionsError && (
+                  <Alert variant="destructive">
+                    <AlertDescription>{suggestionsError}</AlertDescription>
+                  </Alert>
+                )}
+                {suggestionsLoading ? (
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Fetching suggestions...
+                  </div>
+                ) : suggestions.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">
+                    No suggestions yet. Generate a snapshot to see personalized
+                    recommendations.
+                  </p>
+                ) : (
+                  <div className="space-y-3">
+                    {suggestions.map((suggestion) => (
+                      <div
+                        key={suggestion.id}
+                        className="rounded-lg border border-border/50 bg-background/60 p-4"
+                      >
+                        <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                          <div>
+                            <h4 className="font-semibold">{suggestion.title}</h4>
+                            <p className="text-sm text-muted-foreground">
+                              {suggestion.message}
+                            </p>
+                          </div>
+                          <Badge variant="secondary">
+                            {suggestion.priority?.toUpperCase() ?? "INFO"}
+                          </Badge>
+                        </div>
+                        <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                          {suggestion.category && (
+                            <span>Category: {suggestion.category}</span>
+                          )}
+                          {suggestion.status && (
+                            <span>Status: {suggestion.status}</span>
+                          )}
+                          {suggestion.suggested_time_text && (
+                            <span>
+                              Suggested time: {suggestion.suggested_time_text}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
           </div>
         )}
       </div>
@@ -198,103 +337,96 @@ const Dashboard = () => {
   };
 
   return (
-    <SidebarProvider defaultOpen={true}>
-      <div className="min-h-screen flex w-full bg-background">
-        <ChatSidebar />
+    <div className="space-y-6">
+      <header className="sticky top-0 z-10 flex h-14 items-center gap-4 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 px-4">
+        <div className="flex-1">
+          <h1 className="text-lg font-semibold bg-gradient-primary bg-clip-text text-transparent">
+            Study Autopilot
+          </h1>
+        </div>
+        {isConnected && syncStatus === "synced" && (
+          <Badge className="bg-success text-success-foreground">
+            <CheckCircle2 className="mr-1 h-3 w-3" />4 items synced • 2m ago
+          </Badge>
+        )}
+      </header>
 
-        <SidebarInset className="flex-1">
-          <header className="sticky top-0 z-10 flex h-14 items-center gap-4 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 px-4">
-            <SidebarTrigger />
-            <div className="flex-1">
-              <h1 className="text-lg font-semibold bg-gradient-primary bg-clip-text text-transparent">
-                Study Autopilot
-              </h1>
-            </div>
-            {isConnected && syncStatus === "synced" && (
-              <Badge className="bg-success text-success-foreground">
-                <CheckCircle2 className="mr-1 h-3 w-3" />4 items synced • 2m ago
-              </Badge>
-            )}
-          </header>
-
-          <div className="flex-1 p-6">
-            <div className="max-w-7xl mx-auto">
-              {/* Stats Overview */}
-              {isConnected && (
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8 animate-slide-up">
-                  <Card className="p-4 bg-gradient-card border-border/50">
-                    <div className="flex items-center gap-3">
-                      <div className="p-2 rounded-lg bg-primary/10">
-                        <BookOpen className="h-5 w-5 text-primary" />
-                      </div>
-                      <div>
-                        <p className="text-2xl font-bold">3</p>
-                        <p className="text-sm text-muted-foreground">
-                          Active Tasks
-                        </p>
-                      </div>
-                    </div>
-                  </Card>
-
-                  <Card className="p-4 bg-gradient-card border-border/50">
-                    <div className="flex items-center gap-3">
-                      <div className="p-2 rounded-lg bg-accent/10">
-                        <Brain className="h-5 w-5 text-accent" />
-                      </div>
-                      <div>
-                        <p className="text-2xl font-bold">12h</p>
-                        <p className="text-sm text-muted-foreground">
-                          Scheduled
-                        </p>
-                      </div>
-                    </div>
-                  </Card>
-
-                  <Card className="p-4 bg-gradient-card border-border/50">
-                    <div className="flex items-center gap-3">
-                      <div className="p-2 rounded-lg bg-success/10">
-                        <TrendingUp className="h-5 w-5 text-success" />
-                      </div>
-                      <div>
-                        <p className="text-2xl font-bold">87%</p>
-                        <p className="text-sm text-muted-foreground">
-                          Avg Score
-                        </p>
-                      </div>
-                    </div>
-                  </Card>
-
-                  <Card className="p-4 bg-gradient-card border-border/50">
-                    <div className="flex items-center gap-3">
-                      <div className="p-2 rounded-lg bg-warning/10">
-                        <Calendar className="h-5 w-5 text-warning" />
-                      </div>
-                      <div>
-                        <p className="text-2xl font-bold">5</p>
-                        <p className="text-sm text-muted-foreground">
-                          Days Until Exam
-                        </p>
-                      </div>
-                    </div>
-                  </Card>
+      <div className="p-6">
+        <div className="max-w-7xl mx-auto">
+          {/* Stats Overview */}
+          {isConnected && (
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8 animate-slide-up">
+              <Card className="p-4 bg-gradient-card border-border/50">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-lg bg-primary/10">
+                    <BookOpen className="h-5 w-5 text-primary" />
+                  </div>
+                  <div>
+                    <p className="text-2xl font-bold">3</p>
+                    <p className="text-sm text-muted-foreground">
+                      Active Tasks
+                    </p>
+                  </div>
                 </div>
-              )}
+              </Card>
 
-              {/* Main Content */}
-              {renderMainContent()}
+              <Card className="p-4 bg-gradient-card border-border/50">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-lg bg-accent/10">
+                    <Brain className="h-5 w-5 text-accent" />
+                  </div>
+                  <div>
+                    <p className="text-2xl font-bold">12h</p>
+                    <p className="text-sm text-muted-foreground">
+                      Scheduled
+                    </p>
+                  </div>
+                </div>
+              </Card>
+
+              <Card className="p-4 bg-gradient-card border-border/50">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-lg bg-success/10">
+                    <TrendingUp className="h-5 w-5 text-success" />
+                  </div>
+                  <div>
+                    <p className="text-2xl font-bold">87%</p>
+                    <p className="text-sm text-muted-foreground">
+                      Avg Score
+                    </p>
+                  </div>
+                </div>
+              </Card>
+
+              <Card className="p-4 bg-gradient-card border-border/50">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-lg bg-warning/10">
+                    <Calendar className="h-5 w-5 text-warning" />
+                  </div>
+                  <div>
+                    <p className="text-2xl font-bold">5</p>
+                    <p className="text-sm text-muted-foreground">
+                      Days Until Exam
+                    </p>
+                  </div>
+                </div>
+              </Card>
             </div>
-          </div>
-
-          {/* Modals */}
-          {showConsent && (
-            <ConsentModal
-              onConsent={handleConsent}
-              onClose={() => setShowConsent(false)}
-            />
           )}
-        </SidebarInset>
+
+          {/* Main Content */}
+          {renderMainContent()}
+        </div>
       </div>
-    </SidebarProvider>
+
+      {/* Modals */}
+      {showConsent && (
+        <ConsentModal
+          onConsent={handleConsent}
+          onClose={() => setShowConsent(false)}
+        />
+      )}
+    </div>
   );
 };
 
