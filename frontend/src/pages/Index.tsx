@@ -1,8 +1,9 @@
 import { useState } from "react";
 import Dashboard from "@/components/Dashboard";
 import ExamGenerator from "@/components/ExamGenerator";
+import AutonomousMode from "@/components/AutonomousMode";
 import { Button } from "@/components/ui/button";
-import { BookOpen, Brain, Activity } from "lucide-react";
+import { BookOpen, Brain, Activity, Bot } from "lucide-react";
 import { ChatSidebar } from "@/components/ChatSidebar";
 import {
   SidebarProvider,
@@ -19,7 +20,7 @@ import { WorkflowVisualizationSidebar } from "@/components/WorkflowVisualization
 import { Badge } from "@/components/ui/badge";
 
 const IndexContent = () => {
-  const [activeTab, setActiveTab] = useState<"dashboard" | "exam">("dashboard");
+  const [activeTab, setActiveTab] = useState<"dashboard" | "exam" | "autonomous">("dashboard");
   const { toolCalls, isVisible, setVisible } = useWorkflow();
 
   return (
@@ -74,6 +75,16 @@ const IndexContent = () => {
                     <Brain className="w-4 h-4 mr-2" />
                     Exam Generator
                   </Button>
+                  <Button
+                    onClick={() => setActiveTab("autonomous")}
+                    variant={activeTab === "autonomous" ? "default" : "outline"}
+                    className={
+                      activeTab === "autonomous" ? "bg-gradient-primary shadow-md" : ""
+                    }
+                  >
+                    <Bot className="w-4 h-4 mr-2" />
+                    Autonomous Mode
+                  </Button>
                 </div>
                 
                 <Button
@@ -97,7 +108,9 @@ const IndexContent = () => {
             </div>
 
             {/* Content */}
-            {activeTab === "dashboard" ? <Dashboard /> : <ExamGenerator />}
+            {activeTab === "dashboard" && <Dashboard />}
+            {activeTab === "exam" && <ExamGenerator />}
+            {activeTab === "autonomous" && <AutonomousMode />}
           </div>
         </SidebarInset>
 

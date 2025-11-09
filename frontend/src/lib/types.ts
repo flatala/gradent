@@ -173,13 +173,21 @@ export interface SimpleStatusResponse {
   message: string;
 }
 
+// Autonomous Mode types
+export type ExecutionFrequency = "15min" | "30min" | "1hour" | "3hours" | "6hours" | "12hours" | "24hours";
 
-  error?: string | null;
-  uploaded_files?: string[] | null;
+export interface AutonomousConfigPayload {
+  enabled: boolean;
+  frequency: ExecutionFrequency;
+  discord_webhook?: string;
+  ntfy_topic?: string;
 }
 
-export interface SimpleStatusResponse {
-  status: string;
-  message: string;
+export interface AutonomousConfigResponse extends AutonomousConfigPayload {
+  last_execution?: string;
+  next_execution?: string;
 }
 
+export interface TestWebhookPayload {
+  webhook_url: string;
+}

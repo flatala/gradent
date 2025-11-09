@@ -18,6 +18,8 @@ import type {
   SuggestionsResponse,
   ExamResponsePayload,
   SessionsResponsePayload,
+  AutonomousConfigPayload,
+  AutonomousConfigResponse,
 } from "./types";
 
 export const API_BASE = import.meta.env.VITE_API_BASE ?? "/api";
@@ -183,6 +185,33 @@ export const api = {
   async cleanupUploads() {
     return request<SimpleStatusResponse>("/cleanup", {
       method: "DELETE",
+    });
+  },
+
+  // Autonomous Mode endpoints
+  async getAutonomousConfig() {
+    return request<AutonomousConfigResponse>("/api/autonomous/config", {
+      method: "GET",
+    });
+  },
+
+  async updateAutonomousConfig(config: AutonomousConfigPayload) {
+    return request<SimpleStatusResponse>("/api/autonomous/config", {
+      method: "PUT",
+      body: JSON.stringify(config),
+    });
+  },
+
+  async triggerAutonomousExecution() {
+    return request<SimpleStatusResponse>("/api/autonomous/execute", {
+      method: "POST",
+    });
+  },
+
+  async testDiscordWebhook(webhookUrl: string) {
+    return request<SimpleStatusResponse>("/api/autonomous/test-webhook", {
+      method: "POST",
+      body: JSON.stringify({ webhook_url: webhookUrl }),
     });
   },
 };

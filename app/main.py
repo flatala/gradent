@@ -91,10 +91,26 @@ _CHAT_LOCK = asyncio.Lock()
 
 
 class ToolCallTracker(BaseCallbackHandler):
-    """Callback handler to track tool calls during agent execution."""
+    """Callback handler to track tool calls during agent execution.
     
-    def __init__(self):
+    IMPORTANT: Notifications are ONLY sent when send_notifications=True,
+    which should ONLY be used in autonomous mode. Regular chat mode should
+    use send_notifications=False (the default) to avoid spamming users.
+    """
+    
+    def __init__(self, send_notifications: bool = False, discord_webhook: Optional[str] = None, ntfy_topic: Optional[str] = None):
+        """
+        Args:
+            send_notifications: If True, sends notifications when tools complete.
+                               ONLY set to True for autonomous mode execution.
+                               Regular chat should leave this False (default).
+            discord_webhook: Discord webhook URL for notifications (autonomous mode only)
+            ntfy_topic: ntfy topic for push notifications (autonomous mode only)
+        """
         self.tool_calls: List[Dict[str, Any]] = []
+        self.send_notifications = send_notifications
+        self.discord_webhook = discord_webhook
+        self.ntfy_topic = ntfy_topic
         self.tool_map = {
             "run_scheduler_workflow": {"type": "scheduler", "name": "Schedule Meeting"},
             "assess_assignment": {"type": "assessment", "name": "Assess Assignment"},
@@ -127,6 +143,26 @@ class ToolCallTracker(BaseCallbackHandler):
                 except json.JSONDecodeError:
                     last_tool["result"] = {"message": output}
                 logger.info(f"TOOL COMPLETED: {last_tool['tool_name']}")
+                
+                # ONLY send notifications if enabled (autonomous mode ONLY)
+                # Regular chat mode should never send notifications
+                if self.send_notifications:
+                    logger.info(f"[AUTONOMOUS MODE] Sending notifications for tool: {last_tool['tool_name']}")
+                    # Import here to avoid circular dependency
+                    from notifications.autonomous import send_tool_completion_notification
+                    
+                    # Fire and forget - don't block tool execution
+                    asyncio.create_task(
+                        send_tool_completion_notification(
+                            webhook_url=self.discord_webhook or "",
+                            tool_type=last_tool["tool_type"],
+                            tool_name=last_tool["tool_name"],
+                            result=last_tool.get("result", {}),
+                            ntfy_topic=self.ntfy_topic,
+                        )
+                    )
+                else:
+                    logger.debug(f"[CHAT MODE] No notifications sent for tool: {last_tool['tool_name']}")
     
     def on_tool_error(self, error: Exception, **kwargs: Any) -> None:
         """Called when a tool encounters an error."""
