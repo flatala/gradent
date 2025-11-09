@@ -5,13 +5,20 @@ Run this to set up test data for development.
 import sys
 from pathlib import Path
 
-# Add parent directory to path for imports
-ROOT_DIR = Path(__file__).parent
-if str(ROOT_DIR) not in sys.path:
-    sys.path.insert(0, str(ROOT_DIR))
+# Add parent directory to path so we can import from root modules
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from database import mock_data
-from setup_mock_suggestions import populate_suggestions
+
+# Import from the same directory
+import importlib.util
+spec = importlib.util.spec_from_file_location(
+    "setup_mock_suggestions",
+    Path(__file__).parent / "setup_mock_suggestions.py"
+)
+setup_mock_suggestions = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(setup_mock_suggestions)
+populate_suggestions = setup_mock_suggestions.populate_suggestions
 
 
 if __name__ == "__main__":

@@ -1,20 +1,34 @@
 """Script to populate vector DB with mock assignment documents."""
+import sys
+from pathlib import Path
+
+# Add parent directory to path so we can import from root modules
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
 from vector_db import get_vector_store, ingest_document, get_vector_db_path
 from vector_db.mock_documents import get_all_mock_assignments
 from vector_db.retrieval import get_collection_stats
-from database import get_db_session, Assignment
+from database import get_db_session, Assignment, init_db, get_db_path
 
 
 def populate_vector_db(reset: bool = True):
     """Populate vector database with mock assignment documents.
-    
+
     Args:
         reset: If True, clear existing data first
     """
     print("\n" + "=" * 60)
     print("Populating Vector Database with Mock Documents")
     print("=" * 60 + "\n")
-    
+
+    # Initialize SQL database if it doesn't exist
+    db_path = get_db_path()
+    if not db_path.exists():
+        print("Initializing SQL database...")
+        init_db()
+    else:
+        print(f"SQL database exists at: {db_path}")
+
     # Initialize (optionally reset)
     vector_store = get_vector_store(reset=reset)
     print(f"Vector DB path: {get_vector_db_path()}\n")

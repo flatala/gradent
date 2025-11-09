@@ -10,7 +10,8 @@ It also migrates existing Assignment data to UserAssignment.
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).parent))
+# Add parent directory to path so we can import from root modules
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from database import init_db, get_db_session, User, Assignment, UserAssignment, AssignmentStatus
 
