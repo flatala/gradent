@@ -10,7 +10,8 @@ services:
       - "8000:8000"
     environment:
       - OPENAI_API_KEY=${OPENAI_API_KEY}
-      - OPENAI_BASE_URL=${OPENAI_BASE_URL:-}
+      # Only set OPENAI_BASE_URL if defined (don't set to empty string)
+      # - OPENAI_BASE_URL=${OPENAI_BASE_URL}
       - DISCORD_WEBHOOK_URL=${DISCORD_WEBHOOK_URL:-}
       - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID:-}
       - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET:-}
