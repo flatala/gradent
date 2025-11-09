@@ -224,6 +224,41 @@ def schedule_meeting(
         }
 
         _logger.info(f"SCHEDULER: ✓ Event created successfully - ID: {result['event_id']}")
+        
+        # Persist event to database
+        try:
+            from database.connection import SessionLocal
+            from database.models import CalendarEvent
+            
+            db = SessionLocal()
+            try:
+                # Parse start and end times to datetime objects
+                start_dt = datetime.fromisoformat(result["start"].replace("Z", "+00:00"))
+                end_dt = datetime.fromisoformat(result["end"].replace("Z", "+00:00"))
+                
+                calendar_event = CalendarEvent(
+                    user_id=1,  # Default user pattern
+                    event_id=result["event_id"],
+                    calendar_id=calendar_id,
+                    title=result["title"],
+                    description=description,
+                    location=result.get("location"),
+                    start_time=start_dt,
+                    end_time=end_dt,
+                    google_meet_url=result.get("meeting_link"),
+                    calendar_link=result.get("calendar_link"),
+                    attendees=result.get("attendees", [])
+                )
+                
+                db.add(calendar_event)
+                db.commit()
+                _logger.info(f"SCHEDULER: ✓ Event persisted to database - ID: {result['event_id']}")
+            finally:
+                db.close()
+        except Exception as db_error:
+            _logger.error(f"SCHEDULER: Failed to persist event to database: {db_error}", exc_info=True)
+            # Don't fail the whole operation if DB persistence fails
+        
         return result
 
     except Exception as e:
@@ -264,6 +299,27 @@ def cancel_meeting(
         ).execute()
 
         _logger.info(f"SCHEDULER: ✓ Event {event_id} canceled successfully")
+        
+        # Remove event from database
+        try:
+            from database.connection import SessionLocal
+            from database.models import CalendarEvent
+            
+            db = SessionLocal()
+            try:
+                calendar_event = db.query(CalendarEvent).filter_by(event_id=event_id).first()
+                if calendar_event:
+                    db.delete(calendar_event)
+                    db.commit()
+                    _logger.info(f"SCHEDULER: ✓ Event removed from database - ID: {event_id}")
+                else:
+                    _logger.warning(f"SCHEDULER: Event {event_id} not found in database")
+            finally:
+                db.close()
+        except Exception as db_error:
+            _logger.error(f"SCHEDULER: Failed to remove event from database: {db_error}", exc_info=True)
+            # Don't fail the whole operation if DB deletion fails
+        
         return {
             "success": True,
             "event_id": event_id,

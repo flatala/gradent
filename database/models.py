@@ -286,3 +286,40 @@ class StudyBlock(Base):
     user_assignment = relationship("UserAssignment", back_populates="study_blocks")
     course = relationship("Course")
     history_entries = relationship("StudyHistory", back_populates="study_block", cascade="all, delete-orphan")
+
+
+class CalendarEvent(Base):
+    """Calendar events created by the scheduler agent.
+    
+    Tracks all calendar events (meetings, study sessions, etc.) created through
+    the scheduler workflow. Persists event details for tracking and future reference.
+    """
+    __tablename__ = "calendar_events"
+    
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    
+    # Google Calendar identifiers
+    event_id = Column(String, nullable=False, unique=True)  # Google Calendar event ID
+    calendar_id = Column(String, nullable=False)  # Calendar ID (e.g., 'primary')
+    
+    # Event details
+    title = Column(String, nullable=False)
+    description = Column(Text, nullable=True)
+    location = Column(String, nullable=True)
+    
+    # Timing
+    start_time = Column(DateTime, nullable=False)
+    end_time = Column(DateTime, nullable=False)
+    
+    # Meeting details
+    google_meet_url = Column(String, nullable=True)  # Google Meet or other conferencing link
+    calendar_link = Column(String, nullable=True)  # Link to view event in Google Calendar
+    attendees = Column(JSON, default=list)  # List of attendee email addresses
+    
+    # Timestamps
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # Relationships
+    user = relationship("User")
