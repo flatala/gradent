@@ -56,11 +56,14 @@ async def run_exam_api_workflow(
         if not api_key:
             return "Error: No API key provided. Set OPENROUTER_API_KEY environment variable or pass api_key parameter."
 
+    # Append instruction to avoid including answers inline
+    enhanced_description = f"{question_description} IMPORTANT: Do NOT include the correct answers at any point - neither next to the questions nor in a separate section at the end. Do not include 'marks'."
+
     # Create initial state
     state = ExamAPIState(
         pdf_paths=pdf_paths,
         question_header=question_header,
-        question_description=question_description,
+        question_description=enhanced_description,
         api_key=api_key,
         api_base_url=api_base_url,
         model_name=model_name,
@@ -74,6 +77,9 @@ async def run_exam_api_workflow(
         return f"Error generating exam: {result.error}"
 
     if result.generated_questions:
-        return result.generated_questions
+        print('JAJECZKO')
+        # Remove everything after "**Section B: Answers**"
+        output = result.generated_questions.split("**Section B: Answers**")[0].strip()
+        return output
 
     return "No questions were generated. Please check your input parameters and try again."

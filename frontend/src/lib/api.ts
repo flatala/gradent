@@ -17,6 +17,7 @@ import type {
   SuggestionsResetRequest,
   SuggestionsResponse,
   ExamResponsePayload,
+  ExamAssessmentResponsePayload,
   SessionsResponsePayload,
 } from "./types";
 
@@ -153,18 +154,53 @@ export const api = {
     );
   },
 
+  // Assignments ------------------------------------------------------------
+  async getAssignments() {
+    return request<{
+      success: boolean;
+      assignments: Array<{
+        id: string;
+        title: string;
+        course: string;
+        courseName: string;
+        dueDate: string;
+        weight: number;
+        urgency: string;
+        autoSelected: boolean;
+        topics: string[];
+        description: string;
+        materials: string;
+      }>;
+    }>("/assignments");
+  },
+
+  async syncBrightspace() {
+    return request<SimpleStatusResponse>("/sync-brightspace", {
+      method: "POST",
+    });
+  },
+
   // Exam generation --------------------------------------------------------
   async generateExam(payload: {
-    files: File[];
+    files?: File[];
     questionHeader: string;
     questionDescription: string;
     apiKey?: string;
     modelName?: string;
+    useDefaultPdfs?: boolean;
   }) {
     const formData = new FormData();
-    payload.files.forEach((file) => {
-      formData.append("files", file);
-    });
+    
+    // Add files if provided, otherwise use default PDFs
+    if (payload.files && payload.files.length > 0) {
+      payload.files.forEach((file) => {
+        formData.append("files", file);
+      });
+      formData.append("use_default_pdfs", "false");
+    } else {
+      formData.append("use_default_pdfs", "true");
+    }
+    
     formData.append("question_header", payload.questionHeader);
     formData.append("question_description", payload.questionDescription);
     if (payload.apiKey?.trim()) {
@@ -183,6 +219,30 @@ export const api = {
   async cleanupUploads() {
     return request<SimpleStatusResponse>("/cleanup", {
       method: "DELETE",
+    });
+  },
+
+  async assessExam(payload: {
+    assignmentTitle: string;
+    courseName: string;
+    questions: Array<{
+      number: string;
+      text: string;
+      options: string[];
+    }>;
+    userAnswers: Record<string, string>;
+    correctAnswers: Record<string, string>;
+  }) {
+    return request<ExamAssessmentResponsePayload>("/assess-exam", {
+      method: "POST",
+      headers: jsonHeaders,
+      body: JSON.stringify({
+        assignment_title: payload.assignmentTitle,
+        course_name: payload.courseName,
+        questions: payload.questions,
+        user_answers: payload.userAnswers,
+        correct_answers: payload.correctAnswers,
+      }),
     });
   },
 };

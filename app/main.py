@@ -7,7 +7,7 @@ import json
 import logging
 import os
 import shutil
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, Dict, List, Literal, Optional
 
@@ -16,6 +16,7 @@ from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from langchain_core.messages import AIMessage, HumanMessage
 from pydantic import BaseModel, Field
+from sqlalchemy.orm import Session
 
 from agents.chat_agent.agent import MainAgent
 from agents.shared.workflow_tools import (
@@ -29,8 +30,17 @@ from agents.task_agents.progress_tracking.tools import (
     get_user_study_summary,
     log_study_progress,
 )
-from database.connection import get_db_session
-from database.models import Suggestion, SuggestionStatus
+from context_updater.brightspace_client import MockBrightspaceClient
+from database.connection import get_db, get_db_session
+from database.models import (
+    Assignment,
+    AssignmentStatus,
+    Course,
+    Suggestion,
+    SuggestionStatus,
+    User,
+    UserAssignment,
+)
 from shared.config import Configuration
 
 # --------------------------------------------------------------------------- #
@@ -57,8 +67,10 @@ app.add_middleware(
     allow_origins=[
         "http://localhost:3001",
         "http://localhost:5173",
+        "http://localhost:8080",
         "http://127.0.0.1:3001",
         "http://127.0.0.1:5173",
+        "http://127.0.0.1:8080",
     ],
     allow_credentials=True,
     allow_methods=["*"],
@@ -337,6 +349,43 @@ class ExamResponse(BaseModel):
     uploaded_files: Optional[List[str]] = None
 
 
+class ExamAssessmentRequest(BaseModel):
+    assignment_title: str
+    course_name: str
+    questions: List[Dict[str, Any]]  # Each question should have: number, text, options
+    user_answers: Dict[str, str]  # question_number -> selected_answer
+    correct_answers: Dict[str, str]  # question_number -> correct_answer
+
+
+class ExamAssessmentResponse(BaseModel):
+    success: bool
+    score: Optional[int] = None
+    total_questions: Optional[int] = None
+    percentage: Optional[float] = None
+    study_recommendation: Optional[str] = None
+    detailed_feedback: Optional[str] = None
+    error: Optional[str] = None
+
+
+class AssignmentResponse(BaseModel):
+    id: str
+    title: str
+    course: str
+    courseName: str
+    dueDate: str
+    weight: float
+    urgency: str
+    autoSelected: bool
+    topics: List[str]
+    description: Optional[str] = None
+    materials: Optional[str] = None
+
+
+class AssignmentsListResponse(BaseModel):
+    success: bool
+    assignments: List[AssignmentResponse]
+
+
 class SimpleStatusResponse(BaseModel):
     status: str
     message: str
@@ -590,35 +639,181 @@ async def assignment_progress(user_id: int, assignment_id: int) -> AssignmentPro
 
 
 # --------------------------------------------------------------------------- #
+# Assignment endpoints - reads from materials folder
+# --------------------------------------------------------------------------- #
+
+
+@app.get("/api/assignments", response_model=AssignmentsListResponse)
+async def get_assignments() -> AssignmentsListResponse:
+    """Get assignments based on PDF files in the materials folder."""
+    db: Session = next(get_db())
+    try:
+        # Get PDF files from materials folder
+        project_root = Path(__file__).parent.parent
+        materials_dir = project_root / "materials"
+        
+        logger.info(f"Looking for PDFs in: {materials_dir}")
+        
+        if not materials_dir.exists():
+            materials_dir.mkdir(parents=True, exist_ok=True)
+            logger.info(f"Created materials directory: {materials_dir}")
+        
+        pdf_files = list(materials_dir.glob("*.pdf"))
+        logger.info(f"Found {len(pdf_files)} PDF files: {[f.name for f in pdf_files]}")
+        
+        if not pdf_files:
+            logger.warning("No PDF files found in materials folder")
+            return AssignmentsListResponse(success=True, assignments=[])
+        
+        # Get or create user
+        user = db.query(User).filter(User.id == 1).first()
+        if not user:
+            user = User(
+                id=1,
+                name="Test User",
+                email="test@example.com",
+                timezone="America/New_York"
+            )
+            db.add(user)
+            db.commit()
+            logger.info("Created test user")
+        
+        # Get all courses and assignments from database
+        courses = db.query(Course).filter(Course.user_id == user.id).all()
+        db_assignments = db.query(Assignment).join(Course).filter(Course.user_id == user.id).all()
+        logger.info(f"Found {len(courses)} courses and {len(db_assignments)} assignments in database")
+        
+        assignments = []
+        for pdf_file in pdf_files:
+            # Parse filename to extract assignment info
+            filename = pdf_file.stem  # filename without extension
+            
+            # Try to split by common separators
+            parts = filename.replace('_', ' ').replace('-', ' ').split()
+            
+            # Extract assignment title and try to find course
+            assignment_title = filename
+            course_code = "UNKNOWN"
+            course_name = "General Course"
+            matched_course = None
+            
+            # First, try to find assignment in database by title match
+            for db_assignment in db_assignments:
+                # Check if PDF filename contains the assignment title or vice versa
+                if (db_assignment.title.lower() in filename.lower() or 
+                    filename.lower() in db_assignment.title.lower() or
+                    # Fuzzy match - check if significant words match
+                    any(word.lower() in filename.lower() for word in db_assignment.title.split() if len(word) > 4)):
+                    # Found matching assignment - get its course
+                    matched_course = db_assignment.course
+                    course_code = matched_course.code or "COURSE"
+                    course_name = matched_course.title
+                    assignment_title = db_assignment.title  # Use DB title instead of filename
+                    logger.info(f"Matched PDF '{pdf_file.name}' to assignment '{db_assignment.title}' in course '{course_name}'")
+                    break
+            
+            # If no assignment match, try to match with courses directly
+            if not matched_course:
+                for course in courses:
+                    if course.code and course.code.upper() in filename.upper():
+                        matched_course = course
+                        course_code = course.code
+                        course_name = course.title
+                        break
+                    elif course.title and any(word.upper() in filename.upper() for word in course.title.split()):
+                        matched_course = course
+                        course_code = course.code or "COURSE"
+                        course_name = course.title
+                        break
+            
+            # If still no course found, try to extract from filename
+            if not matched_course and len(parts) > 1:
+                # Try to extract course code (usually uppercase letters + numbers)
+                for part in parts:
+                    if part.isupper() or (len(part) > 2 and any(c.isdigit() for c in part)):
+                        course_code = part
+                        break
+            
+            # Generate assignment details
+            assignment = AssignmentResponse(
+                id=str(abs(hash(pdf_file.name))),  # Use absolute hash of filename as ID
+                title=assignment_title,
+                course=course_code,
+                courseName=course_name,
+                dueDate=(datetime.now() + timedelta(days=14)).isoformat(),  # Default 2 weeks from now
+                weight=10.0,
+                urgency="medium",
+                autoSelected=False,
+                topics=[part for part in parts if len(part) > 3][:5],  # Use words as topics
+                description=f"Study materials from {pdf_file.name}",
+                materials=str(pdf_file.absolute())
+            )
+            assignments.append(assignment)
+            logger.info(f"Created assignment: {assignment.title}")
+        
+        logger.info(f"Returning {len(assignments)} assignment(s)")
+        return AssignmentsListResponse(success=True, assignments=assignments)
+        
+    except Exception as e:
+        logger.error(f"Error reading assignments from materials: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        db.close()
+
+
+# --------------------------------------------------------------------------- #
 # Exam generation endpoints
 # --------------------------------------------------------------------------- #
 
 
 @app.post("/api/generate-exam", response_model=ExamResponse)
 async def generate_exam(
-    files: List[UploadFile] = File(..., description="PDF files to process"),
+    files: Optional[List[UploadFile]] = File(None, description="PDF files to process"),
     question_header: str = Form(..., description="Exam header/title"),
     question_description: str = Form(..., description="Question requirements"),
     api_key: Optional[str] = Form(None, description="OpenRouter API key"),
     model_name: Optional[str] = Form(None, description="AI model to use"),
+    use_default_pdfs: bool = Form(False, description="Use PDFs from materials folder"),
 ):
-    """Generate exam questions from uploaded PDF files."""
-    if not files:
-        raise HTTPException(status_code=400, detail="No files uploaded")
-
+    """Generate exam questions from uploaded PDF files or default materials."""
     saved_paths: List[str] = []
+    temp_files_to_delete: List[str] = []  # Track only temporary uploaded files
+    
     try:
-        for file in files:
-            if not file.filename.lower().endswith(".pdf"):
+        # If using default PDFs, look for PDFs in the project root or materials folder
+        if use_default_pdfs or not files:
+            # Check for PDFs in project root
+            project_root = Path(__file__).parent.parent
+            pdf_files = list(project_root.glob("*.pdf"))
+            
+            # Also check materials folder if it exists
+            materials_dir = project_root / "materials"
+            if materials_dir.exists():
+                pdf_files.extend(materials_dir.glob("*.pdf"))
+            
+            if not pdf_files:
                 raise HTTPException(
                     status_code=400,
-                    detail=f"File {file.filename} is not a PDF",
+                    detail="No PDF files found in materials folder. Please upload files or add PDFs to the project.",
                 )
-            file_path = UPLOAD_DIR / file.filename
-            with file_path.open("wb") as buffer:
-                shutil.copyfileobj(file.file, buffer)
-            saved_paths.append(str(file_path.absolute()))
-            logger.info("Saved file: %s", file_path)
+            
+            saved_paths = [str(pdf.absolute()) for pdf in pdf_files[:5]]  # Limit to 5 PDFs
+            # Don't add to temp_files_to_delete - these are permanent files!
+            logger.info(f"Using {len(saved_paths)} default PDF(s): {[Path(p).name for p in saved_paths]}")
+        else:
+            # Process uploaded files
+            for file in files:
+                if not file.filename.lower().endswith(".pdf"):
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"File {file.filename} is not a PDF",
+                    )
+                file_path = UPLOAD_DIR / file.filename
+                with file_path.open("wb") as buffer:
+                    shutil.copyfileobj(file.file, buffer)
+                saved_paths.append(str(file_path.absolute()))
+                temp_files_to_delete.append(str(file_path.absolute()))  # Only delete uploaded files
+                logger.info("Saved file: %s", file_path)
 
         final_api_key = api_key or os.getenv("OPENROUTER_API_KEY")
         if not final_api_key:
@@ -628,7 +823,7 @@ async def generate_exam(
             )
 
         api_base_url = os.getenv("EXAM_API_BASE_URL", "http://localhost:3000")
-        default_model = os.getenv("EXAM_API_MODEL", "qwen/qwen3-30b-a3b:free")
+        default_model = os.getenv("EXAM_API_MODEL", "meta-llama/llama-4-scout:free")
 
         state = ExamAPIState(
             pdf_paths=saved_paths,
@@ -651,7 +846,15 @@ async def generate_exam(
 
         if error:
             logger.error("Exam workflow error: %s", error)
-            return ExamResponse(success=False, error=error)
+            
+            # Provide more helpful error messages
+            error_message = error
+            if "server is busy" in error.lower() or "429" in error:
+                error_message = "The AI service is currently rate-limited. Please wait 30-60 seconds and try again. Consider using a different model or upgrading to a paid tier for better availability."
+            elif "rate limit" in error.lower():
+                error_message = "Rate limit exceeded. Please wait a few minutes before trying again."
+            
+            return ExamResponse(success=False, error=error_message)
 
         if not generated_questions:
             logger.warning("No questions were generated by the workflow.")
@@ -660,10 +863,15 @@ async def generate_exam(
                 error="No questions were generated. Please check your input.",
             )
 
+        # Remove everything after "**Section B: Answers**"
+        logger.info("Applying answer section cutoff...")
+        output = generated_questions.split("**Section B: Answers**")[0].strip()
+        logger.info(f"Original length: {len(generated_questions)}, After cutoff: {len(output)}")
+        
         logger.info("Exam generation completed successfully.")
         return ExamResponse(
             success=True,
-            questions=generated_questions,
+            questions=output,
             uploaded_files=[Path(path).name for path in saved_paths],
         )
     except HTTPException:
@@ -672,13 +880,204 @@ async def generate_exam(
         logger.error("Unexpected error during exam generation: %s", exc, exc_info=True)
         raise HTTPException(status_code=500, detail=str(exc))
     finally:
-        for path in saved_paths:
+        # Only delete temporary uploaded files, NOT materials folder files
+        for path in temp_files_to_delete:
             try:
                 Path(path).unlink()
+                logger.info(f"Deleted temporary file: {path}")
             except FileNotFoundError:
                 continue
             except Exception as exc:  # pragma: no cover - best effort cleanup
                 logger.warning("Failed to delete temporary file %s: %s", path, exc)
+
+
+@app.post("/api/assess-exam", response_model=ExamAssessmentResponse)
+async def assess_exam(request: ExamAssessmentRequest) -> ExamAssessmentResponse:
+    """
+    Assess a completed exam using OpenAI to analyze performance and provide
+    personalized study recommendations. Saves results to database for scheduler integration.
+    """
+    try:
+        # Get configuration and LLM
+        config = Configuration()
+        config.validate()
+        
+        from shared.utils import get_text_llm
+        llm = get_text_llm(config)
+        
+        # Calculate score
+        total_questions = len(request.questions)
+        correct_count = 0
+        
+        for q_id, user_answer in request.user_answers.items():
+            correct_answer = request.correct_answers.get(q_id, "")
+            if user_answer.strip().upper() == correct_answer.strip().upper():
+                correct_count += 1
+        
+        percentage = (correct_count / total_questions * 100) if total_questions > 0 else 0
+        
+        # Build detailed context for the LLM
+        questions_text = "\n\n".join([
+            f"Question {i+1}: {q.get('text', q.get('question', 'N/A'))}\n"
+            f"Options: {', '.join([f'{opt}' for opt in q.get('options', [])])}\n"
+            f"Correct Answer: {request.correct_answers.get(str(i+1), 'N/A')}\n"
+            f"User Answer: {request.user_answers.get(str(i+1), 'Not answered')}"
+            for i, q in enumerate(request.questions)
+        ])
+        
+        # Create prompt for LLM with specific hour extraction instructions
+        prompt = f"""You are an educational assessment expert. A student has just completed a mock exam for the following assignment:
+
+**Course**: {request.course_name}
+**Assignment**: {request.assignment_title}
+
+**Exam Results**:
+- Score: {correct_count}/{total_questions} ({percentage:.1f}%)
+
+**Detailed Questions and Answers**:
+{questions_text}
+
+Based on this performance, provide a study time recommendation in the following format:
+
+**Study Time Recommendation:** [X-Y hours] or [X hours]
+
+Then provide brief, actionable feedback on:
+- What topics/concepts they understand well
+- What areas need more focus
+- Specific study strategies
+
+Be concise and encouraging. Start with the exact hours needed (e.g., "2-3 hours", "4-5 hours", "1-2 hours") based on the score:
+- 90-100%: 1-2 hours (review and consolidation)
+- 70-89%: 2-4 hours (targeted practice on weak areas)
+- 50-69%: 4-6 hours (substantial study needed)
+- Below 50%: 6-8 hours (comprehensive review required)"""
+
+        # Call LLM
+        logger.info(f"Sending exam assessment to LLM for {request.assignment_title}")
+        
+        messages = [
+            ("system", "You are an educational assessment expert who provides personalized study recommendations based on exam performance."),
+            ("human", prompt)
+        ]
+        
+        response = await llm.ainvoke(messages)
+        ai_feedback = response.content if hasattr(response, 'content') else str(response)
+        
+        # Extract study recommendation and hours
+        lines = ai_feedback.split('\n')
+        study_rec = "Based on your performance, review the material for 2-3 hours focusing on weak areas."
+        study_hours = None
+        
+        # Try to find the study time recommendation section and extract hours
+        import re
+        for i, line in enumerate(lines):
+            if "study time" in line.lower() or "hours" in line.lower():
+                # Get the next few lines as the recommendation
+                study_rec = '\n'.join(lines[i:min(i+3, len(lines))]).strip()
+                # Extract numeric hours (e.g., "2-3 hours" -> 2.5, "4 hours" -> 4)
+                hours_match = re.search(r'(\d+)(?:-(\d+))?\s*hours?', line.lower())
+                if hours_match:
+                    low = float(hours_match.group(1))
+                    high = float(hours_match.group(2)) if hours_match.group(2) else low
+                    study_hours = (low + high) / 2
+                break
+        
+        # Fallback: estimate hours based on percentage if not extracted
+        if study_hours is None:
+            if percentage >= 90:
+                study_hours = 1.5
+            elif percentage >= 70:
+                study_hours = 3.0
+            elif percentage >= 50:
+                study_hours = 5.0
+            else:
+                study_hours = 7.0
+        
+        logger.info(f"Assessment completed: {correct_count}/{total_questions} correct, recommended hours: {study_hours}")
+        
+        # Save exam result to database
+        try:
+            from database.models import ExamResult, Assignment, UserAssignment
+            
+            db: Session = next(get_db())
+            
+            # Find the assignment by title and course (assuming user_id=1 for now)
+            assignment = db.query(Assignment).join(Assignment.course).filter(
+                Assignment.title == request.assignment_title,
+            ).first()
+            
+            if assignment:
+                # Save exam result
+                exam_result = ExamResult(
+                    user_id=1,  # TODO: Get from authenticated user session
+                    assignment_id=assignment.id,
+                    exam_type='multiple-choice' if any(q.get('options') for q in request.questions) else 'open-ended',
+                    total_questions=total_questions,
+                    score=correct_count,
+                    percentage=percentage,
+                    study_hours_recommended=study_hours,
+                    study_recommendation_text=study_rec,
+                    questions=[{
+                        'number': q.get('number'),
+                        'text': q.get('text', q.get('question')),
+                        'options': q.get('options', [])
+                    } for q in request.questions],
+                    user_answers=request.user_answers,
+                    correct_answers=request.correct_answers,
+                )
+                
+                db.add(exam_result)
+                db.commit()
+                logger.info(f"Saved exam result to database (ID: {exam_result.id})")
+                
+                # Update UserAssignment with exam-based time estimate
+                user_assignment = db.query(UserAssignment).filter(
+                    UserAssignment.user_id == 1,  # TODO: Get from authenticated user session
+                    UserAssignment.assignment_id == assignment.id
+                ).first()
+                
+                if user_assignment:
+                    # Update hours remaining based on exam performance
+                    user_assignment.hours_remaining = study_hours
+                    user_assignment.hours_estimated_user = study_hours  # Mark as user-influenced (exam-based)
+                    db.commit()
+                    logger.info(f"Updated UserAssignment hours_remaining to {study_hours} hours based on exam performance")
+                else:
+                    # Create UserAssignment if it doesn't exist
+                    user_assignment = UserAssignment(
+                        user_id=1,
+                        assignment_id=assignment.id,
+                        hours_estimated_user=study_hours,
+                        hours_remaining=study_hours,
+                        status=AssignmentStatus.IN_PROGRESS
+                    )
+                    db.add(user_assignment)
+                    db.commit()
+                    logger.info(f"Created UserAssignment with {study_hours} hours based on exam performance")
+                
+            else:
+                logger.warning(f"Could not find assignment '{request.assignment_title}' to link exam result")
+        except Exception as db_error:
+            logger.error(f"Failed to save exam result to database: {db_error}", exc_info=True)
+            # Don't fail the entire request if DB save fails
+        
+        return ExamAssessmentResponse(
+            success=True,
+            score=correct_count,
+            total_questions=total_questions,
+            percentage=round(percentage, 1),
+            study_recommendation=study_rec,
+            detailed_feedback=ai_feedback,
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.error(f"Error assessing exam: {exc}", exc_info=True)
+        return ExamAssessmentResponse(
+            success=False,
+            error=f"Failed to assess exam: {str(exc)}",
+        )
 
 
 @app.delete("/api/cleanup", response_model=SimpleStatusResponse)

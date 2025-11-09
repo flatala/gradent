@@ -158,6 +158,28 @@ export interface ExamResponsePayload {
   uploaded_files?: string[] | null;
 }
 
+export interface ExamAssessmentRequestPayload {
+  assignment_title: string;
+  course_name: string;
+  questions: Array<{
+    number: string;
+    text: string;
+    options: string[];
+  }>;
+  user_answers: Record<string, string>;
+  correct_answers: Record<string, string>;
+}
+
+export interface ExamAssessmentResponsePayload {
+  success: boolean;
+  score?: number;
+  total_questions?: number;
+  percentage?: number;
+  study_recommendation?: string;
+  detailed_feedback?: string;
+  error?: string;
+}
+
 export interface SimpleStatusResponse {
   status: string;
   message: string;

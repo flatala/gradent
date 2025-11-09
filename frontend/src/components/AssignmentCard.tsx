@@ -1,25 +1,38 @@
+import { useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Calendar, TrendingUp, Target } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Calendar, TrendingUp, Target, CheckCircle2, List, FileText, Sparkles, Loader2, PlayCircle, X } from "lucide-react";
 
 interface Assignment {
   id: string;
   title: string;
   course: string;
+  courseName: string;
   dueDate: string;
   weight: number;
   urgency: "high" | "medium" | "low";
   autoSelected: boolean;
   topics: string[];
+  description?: string;
+  materials?: string;
 }
+
+export type ExamType = "multiple-choice" | "open-questions" | "custom";
 
 interface AssignmentCardProps {
   assignment: Assignment;
-  onStartExam: (assignment: Assignment) => void;
+  isGenerating?: boolean;
+  hasExam?: boolean;
+  onStartExam: (assignment: Assignment, examType: ExamType, customInstructions?: string) => void;
+  onViewExam?: (assignment: Assignment) => void;
 }
 
-const AssignmentCard = ({ assignment, onStartExam }: AssignmentCardProps) => {
+const AssignmentCard = ({ assignment, isGenerating = false, hasExam = false, onStartExam, onViewExam }: AssignmentCardProps) => {
+  const [showCustomInput, setShowCustomInput] = useState(false);
+  const [customInstructions, setCustomInstructions] = useState("");
+
   const urgencyColors: Record<
     Assignment["urgency"],
     "destructive" | "warning" | "success"
@@ -33,6 +46,22 @@ const AssignmentCard = ({ assignment, onStartExam }: AssignmentCardProps) => {
     (new Date(assignment.dueDate).getTime() - new Date().getTime()) /
       (1000 * 60 * 60 * 24),
   );
+
+  const handleExamTypeClick = (examType: ExamType) => {
+    if (examType === "custom") {
+      setShowCustomInput(true);
+    } else {
+      onStartExam(assignment, examType);
+    }
+  };
+
+  const handleCustomSubmit = () => {
+    if (customInstructions.trim()) {
+      onStartExam(assignment, "custom", customInstructions);
+      setCustomInstructions("");
+      setShowCustomInput(false);
+    }
+  };
 
   return (
     <Card className="p-6 bg-gradient-card border-border/50 hover:shadow-md transition-all duration-300 hover:scale-[1.02]">
@@ -103,13 +132,103 @@ const AssignmentCard = ({ assignment, onStartExam }: AssignmentCardProps) => {
           </div>
         </div>
 
-        {/* Action */}
-        <Button
-          onClick={() => onStartExam(assignment)}
-          className="w-full shadow-sm"
-        >
-          Start Mock Exam
-        </Button>
+        {/* Exam Type Selection or Status */}
+        <div className="space-y-3">
+          {isGenerating ? (
+            <div className="flex flex-col items-center justify-center py-8 space-y-3">
+              <div className="relative">
+                <Loader2 className="h-12 w-12 text-primary animate-spin" />
+                <Sparkles className="h-5 w-5 text-primary/60 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" />
+              </div>
+              <p className="text-sm text-muted-foreground">Generating your exam...</p>
+            </div>
+          ) : hasExam ? (
+            <div className="flex flex-col items-center justify-center py-6 space-y-3">
+              <div className="flex items-center justify-center w-16 h-16 rounded-full bg-primary/10">
+                <CheckCircle2 className="h-8 w-8 text-primary" />
+              </div>
+              <p className="text-sm font-medium">Exam Ready!</p>
+              <Button
+                onClick={() => onViewExam?.(assignment)}
+                className="w-full gap-2"
+              >
+                <PlayCircle className="h-4 w-4" />
+                Start Exam
+              </Button>
+            </div>
+          ) : (
+            <>
+              <p className="text-xs text-muted-foreground uppercase tracking-wide flex items-center gap-2">
+                <Sparkles className="h-3 w-3" />
+                Generate Mock Exam
+              </p>
+              
+              {!showCustomInput ? (
+                <div className="grid grid-cols-1 gap-2">
+                  <Button
+                    onClick={() => handleExamTypeClick("multiple-choice")}
+                    variant="outline"
+                    className="w-full justify-start gap-2 hover:bg-primary/10 hover:border-primary"
+                  >
+                    <CheckCircle2 className="h-4 w-4" />
+                    <span className="flex-1 text-left">10 Multiple Choice Questions</span>
+                  </Button>
+                  
+                  <Button
+                    onClick={() => handleExamTypeClick("open-questions")}
+                    variant="outline"
+                    className="w-full justify-start gap-2 hover:bg-primary/10 hover:border-primary"
+                  >
+                    <FileText className="h-4 w-4" />
+                    <span className="flex-1 text-left">5 Open Questions</span>
+                  </Button>
+                  
+                  <Button
+                    onClick={() => handleExamTypeClick("custom")}
+                    variant="outline"
+                    className="w-full justify-start gap-2 hover:bg-primary/10 hover:border-primary"
+                  >
+                    <List className="h-4 w-4" />
+                    <span className="flex-1 text-left">Custom Instructions</span>
+                  </Button>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <Input
+                    placeholder="Enter custom exam instructions (e.g., '3 essay questions about...')"
+                    value={customInstructions}
+                    onChange={(e) => setCustomInstructions(e.target.value)}
+                    onKeyPress={(e) => {
+                      if (e.key === 'Enter') {
+                        handleCustomSubmit();
+                      }
+                    }}
+                    className="w-full"
+                    autoFocus
+                  />
+                  <div className="flex gap-2">
+                    <Button
+                      onClick={handleCustomSubmit}
+                      className="flex-1"
+                      disabled={!customInstructions.trim()}
+                    >
+                      Generate
+                    </Button>
+                    <Button
+                      onClick={() => {
+                        setShowCustomInput(false);
+                        setCustomInstructions("");
+                      }}
+                      variant="outline"
+                    >
+                      Cancel
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+        </div>
       </div>
     </Card>
   );

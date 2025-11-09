@@ -12,7 +12,7 @@ load_dotenv()
 async def test_exam_api_workflow():
     """Test the exam API workflow with sample data."""
     api_key = os.getenv("OPENROUTER_API_KEY")
-    model_name = "qwen/qwen3-30b-a3b:free"  # More reliable free model
+    model_name = "meta-llama/llama-4-scout:free"  # More reliable free model
 
     print("=" * 80)
     print("Testing Exam API Workflow")
