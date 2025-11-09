@@ -35,7 +35,7 @@ const IndexContent = () => {
 
         <ChatSidebar />
 
-        <SidebarInset className="flex-1">
+        <SidebarInset className="flex-1" style={{ marginRight: isVisible ? '400px' : '0', transition: 'margin-right 0.3s ease' }}>
           <div className="container mx-auto px-4 py-8">
             {/* Header - Centered */}
             <div className="mb-8 animate-fade-in">

@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useCallback } from "react";
 
-export type ToolCallType = "scheduler" | "assessment" | "suggestions" | "exam_generation";
+export type ToolCallType = "scheduler" | "assessment" | "suggestions" | "exam_generation" | "progress_tracking" | "context_update";
 export type ToolCallStatus = "pending" | "in_progress" | "completed" | "failed";
 
 export interface ToolCallVisualization {

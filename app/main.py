@@ -91,51 +91,104 @@ _CHAT_LOCK = asyncio.Lock()
 
 
 class ToolCallTracker(BaseCallbackHandler):
-    """Callback handler to track tool calls during agent execution."""
+    """Callback handler to track tool calls during agent execution.
+    
+    ONLY tracks top-level workflow tools, ignoring internal tool calls within subgraphs.
+    """
     
     def __init__(self):
         self.tool_calls: List[Dict[str, Any]] = []
+        # Only track these top-level workflow tools
+        self.tracked_tools = {
+            "run_scheduler_workflow",
+            "assess_assignment", 
+            "generate_suggestions",
+            "run_exam_api_workflow",
+            "log_progress_update",
+            "run_context_update",
+        }
         self.tool_map = {
             "run_scheduler_workflow": {"type": "scheduler", "name": "Schedule Meeting"},
             "assess_assignment": {"type": "assessment", "name": "Assess Assignment"},
             "generate_suggestions": {"type": "suggestions", "name": "Generate Suggestions"},
             "run_exam_api_workflow": {"type": "exam_generation", "name": "Generate Exam"},
+            "log_progress_update": {"type": "progress_tracking", "name": "Log Study Progress"},
+            "run_context_update": {"type": "context_update", "name": "Update Course Context"},
         }
+        self.active_tool: Optional[str] = None
     
     def on_tool_start(self, serialized: Dict[str, Any], input_str: str, **kwargs: Any) -> None:
-        """Called when a tool starts executing."""
+        """Called when a tool starts executing. Only track top-level workflow tools."""
         tool_name = serialized.get("name", "unknown")
-        if tool_name in self.tool_map:
-            tool_info = self.tool_map[tool_name]
-            self.tool_calls.append({
-                "tool_name": tool_info["name"],
-                "tool_type": tool_info["type"],
-                "status": "started",
-                "timestamp": datetime.utcnow().isoformat(),
-            })
-            logger.info(f"TOOL STARTED: {tool_name}")
+        
+        # CRITICAL: Only track top-level workflow tools, ignore internal tools
+        if tool_name not in self.tracked_tools:
+            logger.debug(f"Ignoring internal tool call: {tool_name}")
+            return
+            
+        tool_info = self.tool_map[tool_name]
+        self.active_tool = tool_name
+        self.tool_calls.append({
+            "tool_name": tool_info["name"],
+            "tool_type": tool_info["type"],
+            "status": "started",
+            "timestamp": datetime.utcnow().isoformat(),
+        })
+        logger.info(f"🔵 WORKFLOW TOOL STARTED: {tool_name}")
     
     def on_tool_end(self, output: str, **kwargs: Any) -> None:
-        """Called when a tool finishes executing."""
-        if self.tool_calls:
-            # Update the last tool call
-            last_tool = self.tool_calls[-1]
-            if last_tool["status"] == "started":
-                last_tool["status"] = "completed"
-                try:
-                    last_tool["result"] = json.loads(output) if output else {}
-                except json.JSONDecodeError:
-                    last_tool["result"] = {"message": output}
-                logger.info(f"TOOL COMPLETED: {last_tool['tool_name']}")
+        """Called when a tool finishes executing. Only update tracked tools."""
+        # Get the tool name from kwargs if available
+        tool_name = kwargs.get("name")
+        
+        # Ignore if not a tracked tool
+        if tool_name and tool_name not in self.tracked_tools:
+            logger.debug(f"Ignoring internal tool end: {tool_name}")
+            return
+            
+        if self.tool_calls and self.active_tool:
+            # Find the matching active tool call (should be last one with status="started")
+            for i in range(len(self.tool_calls) - 1, -1, -1):
+                if self.tool_calls[i]["status"] == "started":
+                    last_tool = self.tool_calls[i]
+                    last_tool["status"] = "completed"
+                    try:
+                        # Handle different output types
+                        if isinstance(output, str):
+                            last_tool["result"] = json.loads(output) if output else {}
+                        elif hasattr(output, "content"):
+                            # Handle ToolMessage or similar objects
+                            content = output.content
+                            last_tool["result"] = json.loads(content) if isinstance(content, str) else content
+                        else:
+                            # Fallback: convert to string
+                            last_tool["result"] = {"message": str(output)}
+                        logger.info(f"✅ WORKFLOW TOOL COMPLETED: {self.active_tool}")
+                        logger.debug(f"RESULT: {json.dumps(last_tool['result'], indent=2)}")
+                    except (json.JSONDecodeError, AttributeError, TypeError) as e:
+                        logger.warning(f"Failed to parse tool result: {e}")
+                        last_tool["result"] = {"raw_output": str(output)}
+                    self.active_tool = None
+                    break
     
     def on_tool_error(self, error: Exception, **kwargs: Any) -> None:
-        """Called when a tool encounters an error."""
-        if self.tool_calls:
-            last_tool = self.tool_calls[-1]
-            if last_tool["status"] == "started":
-                last_tool["status"] = "failed"
-                last_tool["error"] = str(error)
-                logger.error(f"TOOL FAILED: {last_tool['tool_name']} - {error}")
+        """Called when a tool encounters an error. Only track errors for tracked tools."""
+        tool_name = kwargs.get("name")
+        
+        # Ignore if not a tracked tool
+        if tool_name and tool_name not in self.tracked_tools:
+            return
+            
+        if self.tool_calls and self.active_tool:
+            # Find the last started tool
+            for i in range(len(self.tool_calls) - 1, -1, -1):
+                if self.tool_calls[i]["status"] == "started":
+                    last_tool = self.tool_calls[i]
+                    last_tool["status"] = "failed"
+                    last_tool["error"] = str(error)
+                    logger.error(f"❌ WORKFLOW TOOL FAILED: {self.active_tool} - {error}")
+                    self.active_tool = None
+                    break
 
 
 def _require_agent_config() -> Configuration:
@@ -242,7 +295,7 @@ class ChatHistoryMessage(BaseModel):
 class ToolCallInfo(BaseModel):
     """Information about a tool that was called during agent execution."""
     tool_name: str
-    tool_type: Literal["scheduler", "assessment", "suggestions", "exam_generation"]
+    tool_type: Literal["scheduler", "assessment", "suggestions", "exam_generation", "progress_tracking", "context_update"]
     status: Literal["started", "completed", "failed"]
     result: Optional[Dict[str, Any]] = None
     error: Optional[str] = None

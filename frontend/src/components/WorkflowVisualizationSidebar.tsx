@@ -7,10 +7,12 @@ import { ToolCallCard } from "@/components/ToolCallCard";
 export const WorkflowVisualizationSidebar = () => {
   const { toolCalls, isVisible, setVisible } = useWorkflow();
 
-  if (!isVisible) return null;
-
   return (
-    <div className="fixed right-0 top-0 h-screen w-[400px] bg-background border-l border-border shadow-2xl z-40 flex flex-col">
+    <div 
+      className={`fixed right-0 top-0 h-screen w-[400px] bg-background border-l border-border shadow-2xl z-40 flex flex-col transform transition-transform duration-300 ease-in-out ${
+        isVisible ? 'translate-x-0' : 'translate-x-full'
+      }`}
+    >
       {/* Header */}
       <div className="flex items-center justify-between p-4 border-b border-border bg-muted/30">
         <div className="flex items-center gap-2">

@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/sidebar";
 import { api } from "@/lib/api";
 import { useWorkflow } from "@/contexts/WorkflowContext";
+import { toast } from "sonner";
 
 type Message = { role: "user" | "assistant"; content: string };
 
@@ -70,7 +71,7 @@ export function ChatSidebar() {
     setMessage("");
     setError(null);
 
-    const optimisticHistory = [...messages, { role: "user", content: userText }];
+    const optimisticHistory: Message[] = [...messages, { role: "user" as const, content: userText }];
     setMessages(optimisticHistory);
     setLoading(true);
 
@@ -82,26 +83,54 @@ export function ChatSidebar() {
       setMessages(response.history);
       
       // ONLY process tool calls if the backend actually returned some
-      console.log("Backend response tool_calls:", response.tool_calls);
+      console.log("=== BACKEND RESPONSE ===");
+      console.log("Full response:", response);
+      console.log("Tool calls:", response.tool_calls);
+      console.log("Tool calls type:", typeof response.tool_calls);
+      console.log("Tool calls is array:", Array.isArray(response.tool_calls));
       
       if (response.tool_calls && Array.isArray(response.tool_calls) && response.tool_calls.length > 0) {
         console.log(`Processing ${response.tool_calls.length} tool calls from backend`);
         
         response.tool_calls.forEach((toolCall, index) => {
-          console.log(`Tool call ${index + 1}:`, toolCall);
+          console.log(`\n=== Tool Call ${index + 1} ===`);
+          console.log("Full tool call object:", toolCall);
+          console.log("Tool name:", toolCall.tool_name);
+          console.log("Tool type:", toolCall.tool_type);
+          console.log("Status:", toolCall.status);
+          console.log("Result:", toolCall.result);
+          console.log("Result type:", typeof toolCall.result);
           
           const toolCallId = addToolCall({
             type: toolCall.tool_type,
             status: toolCall.status === "started" ? "in_progress" : toolCall.status,
             title: toolCall.tool_name,
             description: toolCall.status === "started" ? "Processing..." : undefined,
+            result: toolCall.result, // Pass result immediately
           });
+          
+          // Show toast notification when tool starts
+          if (toolCall.status === "started") {
+            toast.loading(toolCall.tool_name, {
+              description: "Agent is working on this task...",
+              id: toolCallId,
+            });
+          }
           
           // If tool is completed or failed, update immediately
           if (toolCall.status === "completed" && toolCall.result) {
+            console.log("Tool result:", toolCall.result);
             completeToolCall(toolCallId, toolCall.result);
+            toast.success(toolCall.tool_name, {
+              description: "Task completed successfully!",
+              id: toolCallId,
+            });
           } else if (toolCall.status === "failed" && toolCall.error) {
             failToolCall(toolCallId, toolCall.error);
+            toast.error(toolCall.tool_name, {
+              description: toolCall.error,
+              id: toolCallId,
+            });
           }
         });
       } else {
@@ -112,7 +141,7 @@ export function ChatSidebar() {
       const fallback = (err as Error).message ?? "Failed to reach the assistant.";
       setMessages([
         ...optimisticHistory,
-        { role: "assistant", content: fallback },
+        { role: "assistant" as const, content: fallback },
       ]);
       setError(fallback);
     } finally {
