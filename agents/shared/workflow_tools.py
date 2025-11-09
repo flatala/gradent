@@ -17,12 +17,17 @@ from database.models import (
     Suggestion,
     SuggestionStatus,
     User,
+    Assignment,
+    UserAssignment,
+    AssignmentStatus,
+    AssignmentAssessment,
 )
 from agents.task_agents.scheduler import scheduler_graph, SchedulerState
 from agents.task_agents.assignment_assessment import assessment_graph, AssessmentState, AssignmentInfo
 from shared.config import Configuration
 from shared.utils import get_text_llm
 from agents.task_agents.suggestions import SuggestionsState, Suggestion as WorkflowSuggestion, suggestions_graph
+from context_updater.ingestion import ContextUpdater
 
 _logger = logging.getLogger("chat")
 
@@ -511,3 +516,127 @@ async def run_exam_api_workflow(
         return result.generated_questions
 
     return "No questions were generated. Please check your input parameters and try again."
+
+
+@tool
+async def run_context_update(user_id: int) -> str:
+    """Run context update to sync courses and assignments from Brightspace LMS.
+
+    Use this tool when you need to:
+    - Sync the latest assignments from Brightspace
+    - Update course information
+    - Refresh the vector database with new content
+
+    This tool fetches data from the LMS and updates both the SQL database
+    and the vector database for RAG.
+
+    Args:
+        user_id: Database user ID
+
+    Returns:
+        JSON string with sync statistics (courses_synced, assignments_synced, content_indexed)
+    """
+    if _logger:
+        try:
+            _logger.info("TOOL CALL: run_context_update | user_id=%d", user_id)
+        except Exception:
+            pass
+
+    start = perf_counter()
+
+    try:
+        context_updater = ContextUpdater(user_id=user_id)
+        stats = context_updater.sync_all()
+
+        if _logger:
+            try:
+                _logger.info(
+                    "TOOL DONE: run_context_update | duration=%.2fs | courses=%d | assignments=%d",
+                    perf_counter() - start,
+                    stats.get("courses_synced", 0),
+                    stats.get("assignments_synced", 0),
+                )
+            except Exception:
+                pass
+
+        return json.dumps(stats, indent=2)
+
+    except Exception as e:
+        if _logger:
+            try:
+                _logger.error("TOOL ERROR: run_context_update | error=%s", str(e))
+            except Exception:
+                pass
+        return json.dumps({"error": f"Failed to sync context: {str(e)}"}, indent=2)
+
+
+@tool
+async def get_unassessed_assignments(user_id: int) -> str:
+    """Get list of assignments that don't have assessments yet.
+
+    Use this tool to:
+    - Find new assignments that need assessment
+    - Identify which assignments need effort estimation
+    - Get assignments ready for auto-scheduling
+
+    Args:
+        user_id: Database user ID
+
+    Returns:
+        JSON array of assignments without assessments (assignment_id, title, description, due_date)
+    """
+    if _logger:
+        try:
+            _logger.info("TOOL CALL: get_unassessed_assignments | user_id=%d", user_id)
+        except Exception:
+            pass
+
+    start = perf_counter()
+    assignments = []
+
+    try:
+        with get_db_session() as db:
+            user_assignments = db.query(UserAssignment).filter(
+                UserAssignment.user_id == user_id,
+                UserAssignment.status == AssignmentStatus.NOT_STARTED
+            ).all()
+
+            for ua in user_assignments:
+                assignment = db.query(Assignment).filter(
+                    Assignment.id == ua.assignment_id
+                ).first()
+
+                if assignment:
+                    # Check if assessment exists
+                    existing = db.query(AssignmentAssessment).filter(
+                        AssignmentAssessment.assignment_id == assignment.id
+                    ).first()
+
+                    if not existing:
+                        assignments.append({
+                            "assignment_id": assignment.id,
+                            "course_id": assignment.course_id,
+                            "title": assignment.title,
+                            "description": assignment.description or "",
+                            "due_date": assignment.due_date.isoformat() if assignment.due_date else None,
+                        })
+
+        if _logger:
+            try:
+                _logger.info(
+                    "TOOL DONE: get_unassessed_assignments | duration=%.2fs | count=%d",
+                    perf_counter() - start,
+                    len(assignments),
+                )
+            except Exception:
+                pass
+
+        return json.dumps(assignments, indent=2)
+
+    except Exception as e:
+        if _logger:
+            try:
+                _logger.error("TOOL ERROR: get_unassessed_assignments | error=%s", str(e))
+            except Exception:
+                pass
+        return json.dumps({"error": f"Failed to get assignments: {str(e)}"}, indent=2)
