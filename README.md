@@ -85,13 +85,25 @@ SQLite lives at `data/study_assistant.db` (created on demand).
 
 ## Getting Started
 
-1. **Install dependencies**
+1. **Quick Setup (Recommended)**
    ```bash
+   # Run the unified setup script - it does everything!
+   bash setup.sh
+   
+   # Or manually:
    poetry install
+   poetry run python scripts/setup_all.py
    ```
+   
+   This will:
+   - Install all dependencies
+   - Initialize the SQL database schema
+   - Populate mock data (users, courses, assignments)
+   - Set up the vector database with sample documents
+   - Create sample suggestions for testing
 
 2. **Configure environment**
-   Create a `.env` (copy `.env.example` if provided) and set:
+   Create a `.env` file and set:
    ```
    OPENAI_API_KEY=sk-...
    # Optional overrides
@@ -101,11 +113,14 @@ SQLite lives at `data/study_assistant.db` (created on demand).
    # SUGGESTION_MAX_PER_CYCLE=1
    ```
 
-3. **Seed the database (optional but recommended for demos)**
+3. **Reset data (if needed)**
    ```bash
-   poetry run python -m database.mock_data         # or run setup_mock_data.py for interactive reset
-   poetry run python setup_mock_suggestions.py     # optional: demo reminder rows
-   poetry run python setup_vector_db.py            # optional: populate Chroma with mock docs
+   # Full reset with confirmation
+   poetry run python scripts/setup_all.py --reset
+   
+   # Or run individual setup scripts
+   poetry run python scripts/setup_mock_data.py
+   poetry run python scripts/setup_vector_db.py
    ```
 
 4. **Run the CLI assistant**
