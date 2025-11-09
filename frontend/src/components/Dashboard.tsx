@@ -19,7 +19,6 @@ import {
 import AssignmentCard, { type ExamType } from "./AssignmentCard";
 import ResultsView from "./ResultsView";
 import ScheduleAdjustment from "./ScheduleAdjustment";
-import ConsentModal from "./ConsentModal";
 import { CalendarSync } from "./CalendarSync";
 import { api } from "@/lib/api";
 import type { SuggestionRecord } from "@/lib/types";
@@ -468,10 +467,10 @@ const Dashboard = () => {
   }, []);
 
   useEffect(() => {
-    if (isConnected && syncStatus === "synced") {
+    if (syncStatus === "synced") {
       fetchSuggestions();
     }
-  }, [isConnected, syncStatus, fetchSuggestions]);
+  }, [syncStatus, fetchSuggestions]);
 
   const renderMainContent = () => {
     if (currentView === "results") {
@@ -499,43 +498,18 @@ const Dashboard = () => {
 
     return (
       <div className="space-y-8">
-        {!isConnected && (
-          <div className="flex items-center justify-center min-h-[400px]">
-            <Card className="p-8 max-w-md text-center bg-gradient-card shadow-lg">
-              <div className="mb-6">
-                <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <Brain className="h-8 w-8 text-primary" />
-                </div>
-                <h2 className="text-2xl font-bold mb-2">Get Started</h2>
-                <p className="text-muted-foreground">
-                  Connect your Brightspace and Google Calendar to let Study
-                  Autopilot manage your study workflow automatically.
-                </p>
-              </div>
-              <Button
-                onClick={handleConnect}
-                size="lg"
-                className="w-full shadow-md"
-              >
-                Connect Services
-              </Button>
-            </Card>
+        <div className="space-y-6 animate-fade-in">
+          <div className="flex items-center justify-between">
+            <h2 className="text-2xl font-bold">Upcoming Assignments</h2>
+            <Button
+              variant="outline"
+              onClick={() => setCurrentView("calendar")}
+              className="gap-2"
+            >
+              <Calendar className="h-4 w-4" />
+              View Calendar
+            </Button>
           </div>
-        )}
-
-        {isConnected && (
-          <div className="space-y-6 animate-fade-in">
-            <div className="flex items-center justify-between">
-              <h2 className="text-2xl font-bold">Upcoming Assignments</h2>
-              <Button
-                variant="outline"
-                onClick={() => setCurrentView("calendar")}
-                className="gap-2"
-              >
-                <Calendar className="h-4 w-4" />
-                View Calendar
-              </Button>
-            </div>
             {assignmentsLoading ? (
               <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
                 {[1, 2, 3].map((i) => (
@@ -785,31 +759,16 @@ const Dashboard = () => {
               </CardContent>
             </Card>
           </div>
-        )}
       </div>
     );
   };
 
   return (
     <div className="space-y-6">
-      <header className="sticky top-0 z-10 flex h-14 items-center gap-4 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 px-4">
-        <div className="flex-1">
-          <h1 className="text-lg font-semibold bg-gradient-primary bg-clip-text text-transparent">
-            Study Autopilot
-          </h1>
-        </div>
-        {isConnected && syncStatus === "synced" && (
-          <Badge className="bg-success text-success-foreground">
-            <CheckCircle2 className="mr-1 h-3 w-3" />4 items synced • 2m ago
-          </Badge>
-        )}
-      </header>
-
       <div className="p-6">
         <div className="max-w-7xl mx-auto">
           {/* Stats Overview */}
-          {isConnected && (
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8 animate-slide-up">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8 animate-slide-up">
               <Card className="p-4 bg-gradient-card border-border/50">
                 <div className="flex items-center gap-3">
                   <div className="p-2 rounded-lg bg-primary/10">
@@ -866,20 +825,11 @@ const Dashboard = () => {
                 </div>
               </Card>
             </div>
-          )}
 
           {/* Main Content */}
           {renderMainContent()}
         </div>
       </div>
-
-      {/* Modals */}
-      {showConsent && (
-        <ConsentModal
-          onConsent={handleConsent}
-          onClose={() => setShowConsent(false)}
-        />
-      )}
     </div>
   );
 };

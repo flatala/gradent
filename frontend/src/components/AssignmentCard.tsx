@@ -3,7 +3,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Calendar, TrendingUp, Target, CheckCircle2, List, FileText, Sparkles, Loader2, PlayCircle, X } from "lucide-react";
+import { Calendar, TrendingUp, Target, CheckCircle2, List, FileText, Sparkles, Loader2, PlayCircle, X, RefreshCw } from "lucide-react";
 
 interface Assignment {
   id: string;
@@ -14,7 +14,7 @@ interface Assignment {
   weight: number;
   urgency: "high" | "medium" | "low";
   autoSelected: boolean;
-  topics: string[];
+  topics?: string[];
   description?: string;
   materials?: string;
 }
@@ -31,6 +31,7 @@ interface AssignmentCardProps {
 
 const AssignmentCard = ({ assignment, isGenerating = false, hasExam = false, onStartExam, onViewExam }: AssignmentCardProps) => {
   const [showCustomInput, setShowCustomInput] = useState(false);
+  const [showRegenerateOptions, setShowRegenerateOptions] = useState(false);
   const [customInstructions, setCustomInstructions] = useState("");
 
   const urgencyColors: Record<
@@ -118,20 +119,6 @@ const AssignmentCard = ({ assignment, isGenerating = false, hasExam = false, onS
           </div>
         </div>
 
-        {/* Topics */}
-        <div className="space-y-2">
-          <p className="text-xs text-muted-foreground uppercase tracking-wide">
-            Key Topics
-          </p>
-          <div className="flex flex-wrap gap-2">
-            {assignment.topics.map((topic, index) => (
-              <Badge key={index} variant="secondary" className="text-xs">
-                {topic}
-              </Badge>
-            ))}
-          </div>
-        </div>
-
         {/* Exam Type Selection or Status */}
         <div className="space-y-3">
           {isGenerating ? (
@@ -148,21 +135,78 @@ const AssignmentCard = ({ assignment, isGenerating = false, hasExam = false, onS
                 <CheckCircle2 className="h-8 w-8 text-primary" />
               </div>
               <p className="text-sm font-medium">Exam Ready!</p>
-              <Button
-                onClick={() => onViewExam?.(assignment)}
-                className="w-full gap-2"
-              >
-                <PlayCircle className="h-4 w-4" />
-                Start Exam
-              </Button>
+              
+              {!showRegenerateOptions ? (
+                <div className="w-full space-y-2">
+                  <Button
+                    onClick={() => onViewExam?.(assignment)}
+                    className="w-full gap-2"
+                  >
+                    <PlayCircle className="h-4 w-4" />
+                    Start Exam
+                  </Button>
+                  <Button
+                    onClick={() => setShowRegenerateOptions(true)}
+                    variant="outline"
+                    className="w-full gap-2"
+                  >
+                    <RefreshCw className="h-4 w-4" />
+                    Regenerate Exam
+                  </Button>
+                </div>
+              ) : (
+                <div className="w-full space-y-2">
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-xs text-muted-foreground">Choose exam type:</p>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setShowRegenerateOptions(false)}
+                      className="h-6 w-6 p-0"
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                  <Button
+                    onClick={() => {
+                      handleExamTypeClick("multiple-choice");
+                      setShowRegenerateOptions(false);
+                    }}
+                    variant="outline"
+                    className="w-full justify-start gap-2 hover:bg-primary/10 hover:border-primary"
+                  >
+                    <CheckCircle2 className="h-4 w-4" />
+                    <span className="flex-1 text-left">10 Multiple Choice Questions</span>
+                  </Button>
+                  
+                  <Button
+                    onClick={() => {
+                      handleExamTypeClick("open-questions");
+                      setShowRegenerateOptions(false);
+                    }}
+                    variant="outline"
+                    className="w-full justify-start gap-2 hover:bg-primary/10 hover:border-primary"
+                  >
+                    <FileText className="h-4 w-4" />
+                    <span className="flex-1 text-left">5 Open Questions</span>
+                  </Button>
+                  
+                  <Button
+                    onClick={() => {
+                      setShowRegenerateOptions(false);
+                      setShowCustomInput(true);
+                    }}
+                    variant="outline"
+                    className="w-full justify-start gap-2 hover:bg-primary/10 hover:border-primary"
+                  >
+                    <List className="h-4 w-4" />
+                    <span className="flex-1 text-left">Custom Instructions</span>
+                  </Button>
+                </div>
+              )}
             </div>
           ) : (
             <>
-              <p className="text-xs text-muted-foreground uppercase tracking-wide flex items-center gap-2">
-                <Sparkles className="h-3 w-3" />
-                Generate Mock Exam
-              </p>
-              
               {!showCustomInput ? (
                 <div className="grid grid-cols-1 gap-2">
                   <Button
