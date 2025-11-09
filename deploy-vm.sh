@@ -29,6 +29,7 @@ BOLD='\033[1m'
 # Configuration
 PROJECT_DIR="$HOME/gradent"
 REPO_URL="https://github.com/flatala/gradent.git"
+REPO_BRANCH="deployment"
 
 ################################################################################
 # Helper Functions
@@ -112,7 +113,8 @@ preflight_checks() {
     
     # Check if running as root
     if [ "$EUID" -eq 0 ]; then
-        print_warning "Please do not run this script as root (sudo)"
+        print_error "Please do not run this script as root or with sudo"
+        print_info "Run as a regular user: ./deploy-vm.sh"
         print_info "The script will prompt for sudo password when needed"
         exit 1
     fi
@@ -311,15 +313,17 @@ clone_repository() {
         else
             print_info "Using existing directory"
             cd "$PROJECT_DIR"
+            print_step "Checking out $REPO_BRANCH branch..."
+            git checkout "$REPO_BRANCH" > /dev/null 2>&1 || true
             print_step "Pulling latest changes..."
-            git pull
+            git pull origin "$REPO_BRANCH"
             print_success "Repository updated"
             return
         fi
     fi
     
-    print_step "Cloning repository from $REPO_URL..."
-    git clone "$REPO_URL" "$PROJECT_DIR" > /dev/null 2>&1
+    print_step "Cloning repository from $REPO_URL (branch: $REPO_BRANCH)..."
+    git clone -b "$REPO_BRANCH" "$REPO_URL" "$PROJECT_DIR" > /dev/null 2>&1
     print_success "Repository cloned to $PROJECT_DIR"
     
     cd "$PROJECT_DIR"
