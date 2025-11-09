@@ -16,7 +16,6 @@ from database.connection import get_db_session
 from database.models import (
     Suggestion,
     SuggestionStatus,
-    User,
     Assignment,
     UserAssignment,
     AssignmentStatus,
@@ -24,8 +23,6 @@ from database.models import (
 )
 from agents.task_agents.scheduler import scheduler_graph, SchedulerState
 from agents.task_agents.assignment_assessment import assessment_graph, AssessmentState, AssignmentInfo
-from shared.config import Configuration
-from shared.utils import get_text_llm
 from agents.task_agents.suggestions import SuggestionsState, Suggestion as WorkflowSuggestion, suggestions_graph
 from agents.task_agents.progress_tracking.graph import progress_tracking_graph
 from agents.task_agents.progress_tracking.state import ProgressLoggingState
@@ -804,3 +801,499 @@ async def get_unassessed_assignments(user_id: int) -> str:
             except Exception:
                 pass
         return json.dumps({"error": f"Failed to get assignments: {str(e)}"}, indent=2)
+
+
+@tool
+async def get_user_assignments(
+    user_id: Optional[int] = None,
+    status: Optional[str] = None,
+    course_id: Optional[int] = None,
+    include_details: bool = True,
+) -> str:
+    """Get information about user's assignments with filtering options.
+
+    Use this tool when the user asks about:
+    - Their assignments or homework
+    - What they need to do
+    - Assignments for a specific course
+    - Completed or in-progress work
+    - Assignment details, deadlines, or status
+
+    Args:
+        user_id: Database user ID (defaults to 1)
+        status: Filter by status - 'not_started', 'in_progress', or 'done' (optional)
+        course_id: Filter by specific course ID (optional)
+        include_details: Include assessment data and progress details (default: True)
+
+    Returns:
+        JSON array of assignments with title, course, due date, status, progress, and assessment
+    """
+    resolved_user_id = _resolve_user_id(user_id)
+    
+    if _logger:
+        try:
+            _logger.info(
+                "TOOL CALL: get_user_assignments | user_id=%d | status=%s | course_id=%s",
+                resolved_user_id, status or "all", course_id or "all"
+            )
+        except Exception:
+            pass
+
+    start = perf_counter()
+    assignments = []
+
+    try:
+        with get_db_session() as db:
+            from database.models import Course
+            
+            # Build query
+            query = db.query(UserAssignment).filter(
+                UserAssignment.user_id == resolved_user_id,
+                UserAssignment.is_archived.is_(False)
+            )
+            
+            # Apply filters
+            if status:
+                try:
+                    status_enum = AssignmentStatus(status)
+                    query = query.filter(UserAssignment.status == status_enum)
+                except ValueError:
+                    return json.dumps({"error": f"Invalid status: {status}. Use 'not_started', 'in_progress', or 'done'"}, indent=2)
+            
+            if course_id:
+                query = query.join(Assignment).filter(Assignment.course_id == course_id)
+            
+            user_assignments = query.all()
+
+            for ua in user_assignments:
+                assignment = db.query(Assignment).filter(
+                    Assignment.id == ua.assignment_id
+                ).first()
+
+                if not assignment:
+                    continue
+                
+                # Get course info
+                course = db.query(Course).filter(Course.id == assignment.course_id).first()
+                
+                # Build basic assignment data
+                assignment_data = {
+                    "assignment_id": assignment.id,
+                    "user_assignment_id": ua.id,
+                    "title": assignment.title,
+                    "description": assignment.description_short or "",
+                    "course": {
+                        "id": course.id,
+                        "title": course.title,
+                        "code": course.code,
+                        "term": course.term,
+                    } if course else None,
+                    "due_date": assignment.due_at.isoformat() if assignment.due_at else None,
+                    "lms_link": assignment.lms_link,
+                    "weight_percentage": assignment.weight_percentage,
+                    "max_points": assignment.max_points,
+                    "status": ua.status.value,
+                    "hours_done": ua.hours_done,
+                    "hours_remaining": ua.hours_remaining,
+                    "last_worked_at": ua.last_worked_at.isoformat() if ua.last_worked_at else None,
+                    "priority": ua.priority,
+                    "notes": ua.notes,
+                }
+                
+                # Include assessment details if requested
+                if include_details:
+                    assessment = db.query(AssignmentAssessment).filter(
+                        AssignmentAssessment.assignment_id == assignment.id,
+                        AssignmentAssessment.is_latest.is_(True)
+                    ).first()
+                    
+                    if assessment:
+                        assignment_data["assessment"] = {
+                            "effort_hours_low": assessment.effort_hours_low,
+                            "effort_hours_most": assessment.effort_hours_most,
+                            "effort_hours_high": assessment.effort_hours_high,
+                            "difficulty_1to5": assessment.difficulty_1to5,
+                            "risk_score_0to100": assessment.risk_score_0to100,
+                            "milestones": assessment.milestones,
+                            "prerequisites": assessment.prereq_topics,
+                            "deliverables": assessment.deliverables,
+                        }
+                    else:
+                        assignment_data["assessment"] = None
+                
+                assignments.append(assignment_data)
+
+        if _logger:
+            try:
+                _logger.info(
+                    "TOOL DONE: get_user_assignments | duration=%.2fs | count=%d",
+                    perf_counter() - start,
+                    len(assignments),
+                )
+            except Exception:
+                pass
+
+        return json.dumps(assignments, indent=2)
+
+    except Exception as e:
+        if _logger:
+            try:
+                _logger.error("TOOL ERROR: get_user_assignments | error=%s", str(e))
+            except Exception:
+                pass
+        return json.dumps({"error": f"Failed to get assignments: {str(e)}"}, indent=2)
+
+
+@tool
+async def get_user_courses(user_id: Optional[int] = None) -> str:
+    """Get information about user's courses.
+
+    Use this tool when the user asks about:
+    - Their courses or classes
+    - What courses they're enrolled in
+    - Course details or information
+    - How many courses they have
+
+    Args:
+        user_id: Database user ID (defaults to 1)
+
+    Returns:
+        JSON array of courses with title, code, term, and assignment counts
+    """
+    resolved_user_id = _resolve_user_id(user_id)
+    
+    if _logger:
+        try:
+            _logger.info("TOOL CALL: get_user_courses | user_id=%d", resolved_user_id)
+        except Exception:
+            pass
+
+    start = perf_counter()
+    courses = []
+
+    try:
+        with get_db_session() as db:
+            from database.models import Course
+            from sqlalchemy import func
+            
+            # Get courses with assignment counts
+            course_data = db.query(
+                Course,
+                func.count(Assignment.id).label('assignment_count')
+            ).outerjoin(Assignment).filter(
+                Course.user_id == resolved_user_id
+            ).group_by(Course.id).all()
+
+            for course, assignment_count in course_data:
+                # Get active assignment counts by status
+                active_assignments = db.query(func.count(UserAssignment.id)).join(
+                    Assignment
+                ).filter(
+                    Assignment.course_id == course.id,
+                    UserAssignment.user_id == resolved_user_id,
+                    UserAssignment.is_archived.is_(False)
+                ).scalar()
+                
+                completed_assignments = db.query(func.count(UserAssignment.id)).join(
+                    Assignment
+                ).filter(
+                    Assignment.course_id == course.id,
+                    UserAssignment.user_id == resolved_user_id,
+                    UserAssignment.status == AssignmentStatus.DONE
+                ).scalar()
+
+                courses.append({
+                    "course_id": course.id,
+                    "title": course.title,
+                    "code": course.code,
+                    "term": course.term,
+                    "lms_course_id": course.lms_course_id,
+                    "total_assignments": assignment_count,
+                    "active_assignments": active_assignments or 0,
+                    "completed_assignments": completed_assignments or 0,
+                    "created_at": course.created_at.isoformat() if course.created_at else None,
+                })
+
+        if _logger:
+            try:
+                _logger.info(
+                    "TOOL DONE: get_user_courses | duration=%.2fs | count=%d",
+                    perf_counter() - start,
+                    len(courses),
+                )
+            except Exception:
+                pass
+
+        return json.dumps(courses, indent=2)
+
+    except Exception as e:
+        if _logger:
+            try:
+                _logger.error("TOOL ERROR: get_user_courses | error=%s", str(e))
+            except Exception:
+                pass
+        return json.dumps({"error": f"Failed to get courses: {str(e)}"}, indent=2)
+
+
+@tool
+async def get_assignment_assessment(
+    assignment_id: int,
+    user_id: Optional[int] = None,
+) -> str:
+    """Get the AI-generated assessment for a specific assignment.
+
+    Use this tool when the user asks about:
+    - How long an assignment will take
+    - How difficult an assignment is
+    - What milestones or subtasks an assignment has
+    - Prerequisites needed for an assignment
+    - Risk level or challenges of an assignment
+
+    Args:
+        assignment_id: Database assignment ID
+        user_id: Database user ID (defaults to 1, used for context)
+
+    Returns:
+        JSON with assessment details including effort, difficulty, milestones, and prerequisites
+    """
+    resolved_user_id = _resolve_user_id(user_id)
+    
+    if _logger:
+        try:
+            _logger.info(
+                "TOOL CALL: get_assignment_assessment | user_id=%d | assignment_id=%d",
+                resolved_user_id, assignment_id
+            )
+        except Exception:
+            pass
+
+    start = perf_counter()
+
+    try:
+        with get_db_session() as db:
+            from database.models import Course
+            
+            # Get assignment
+            assignment = db.query(Assignment).filter(
+                Assignment.id == assignment_id
+            ).first()
+            
+            if not assignment:
+                return json.dumps({"error": f"Assignment with ID {assignment_id} not found"}, indent=2)
+            
+            # Get course info
+            course = db.query(Course).filter(Course.id == assignment.course_id).first()
+            
+            # Get latest assessment
+            assessment = db.query(AssignmentAssessment).filter(
+                AssignmentAssessment.assignment_id == assignment_id,
+                AssignmentAssessment.is_latest.is_(True)
+            ).first()
+            
+            if not assessment:
+                return json.dumps({
+                    "assignment_id": assignment_id,
+                    "title": assignment.title,
+                    "course": course.title if course else None,
+                    "assessment": None,
+                    "message": "No assessment available for this assignment. Use assess_assignment tool to generate one."
+                }, indent=2)
+            
+            result = {
+                "assignment_id": assignment_id,
+                "title": assignment.title,
+                "course": {
+                    "id": course.id,
+                    "title": course.title,
+                    "code": course.code,
+                } if course else None,
+                "due_date": assignment.due_at.isoformat() if assignment.due_at else None,
+                "assessment": {
+                    "effort_estimates": {
+                        "low_hours": assessment.effort_hours_low,
+                        "most_likely_hours": assessment.effort_hours_most,
+                        "high_hours": assessment.effort_hours_high,
+                    },
+                    "difficulty_1to5": assessment.difficulty_1to5,
+                    "risk_score_0to100": assessment.risk_score_0to100,
+                    "confidence": assessment.confidence_0to1,
+                    "weight_in_course": assessment.weight_in_course,
+                    "milestones": assessment.milestones,
+                    "prerequisites": assessment.prereq_topics,
+                    "deliverables": assessment.deliverables,
+                    "blocking_dependencies": assessment.blocking_dependencies,
+                    "assessed_at": assessment.created_at.isoformat() if assessment.created_at else None,
+                    "version": assessment.version,
+                }
+            }
+
+        if _logger:
+            try:
+                _logger.info(
+                    "TOOL DONE: get_assignment_assessment | duration=%.2fs | has_assessment=%s",
+                    perf_counter() - start,
+                    assessment is not None
+                )
+            except Exception:
+                pass
+
+        return json.dumps(result, indent=2)
+
+    except Exception as e:
+        if _logger:
+            try:
+                _logger.error("TOOL ERROR: get_assignment_assessment | error=%s", str(e))
+            except Exception:
+                pass
+        return json.dumps({"error": f"Failed to get assessment: {str(e)}"}, indent=2)
+
+
+@tool
+async def get_study_progress(
+    user_id: Optional[int] = None,
+    assignment_id: Optional[int] = None,
+    days: Optional[int] = 7,
+) -> str:
+    """Get study progress and history for a user or specific assignment.
+
+    Use this tool when the user asks about:
+    - How much they've studied
+    - Their study history or progress
+    - Time spent on an assignment
+    - Recent study sessions
+    - Study statistics or analytics
+
+    Args:
+        user_id: Database user ID (defaults to 1)
+        assignment_id: Filter by specific assignment (optional)
+        days: Number of days to look back (default: 7)
+
+    Returns:
+        JSON with study statistics and recent sessions
+    """
+    resolved_user_id = _resolve_user_id(user_id)
+    
+    if _logger:
+        try:
+            _logger.info(
+                "TOOL CALL: get_study_progress | user_id=%d | assignment_id=%s | days=%d",
+                resolved_user_id, assignment_id or "all", days
+            )
+        except Exception:
+            pass
+
+    start = perf_counter()
+
+    try:
+        with get_db_session() as db:
+            from database.models import StudyHistory, Course
+            from datetime import timedelta
+            
+            # Calculate cutoff date
+            cutoff_date = datetime.utcnow() - timedelta(days=days)
+            
+            # Build query for study history
+            query = db.query(StudyHistory).filter(
+                StudyHistory.user_id == resolved_user_id,
+                StudyHistory.date >= cutoff_date
+            )
+            
+            if assignment_id:
+                # Get user_assignment_id
+                ua = db.query(UserAssignment).filter(
+                    UserAssignment.user_id == resolved_user_id,
+                    UserAssignment.assignment_id == assignment_id
+                ).first()
+                
+                if ua:
+                    query = query.filter(StudyHistory.user_assignment_id == ua.id)
+                else:
+                    return json.dumps({
+                        "error": f"No user assignment found for assignment_id {assignment_id}"
+                    }, indent=2)
+            
+            # Get all study sessions
+            sessions = query.order_by(StudyHistory.date.desc()).all()
+            
+            # Calculate statistics
+            total_minutes = sum(s.minutes for s in sessions)
+            total_hours = total_minutes / 60.0
+            
+            # Get average ratings
+            focus_ratings = [s.focus_rating_1to5 for s in sessions if s.focus_rating_1to5]
+            quality_ratings = [s.quality_rating_1to5 for s in sessions if s.quality_rating_1to5]
+            
+            avg_focus = sum(focus_ratings) / len(focus_ratings) if focus_ratings else None
+            avg_quality = sum(quality_ratings) / len(quality_ratings) if quality_ratings else None
+            
+            # Build session details
+            session_details = []
+            for session in sessions[:20]:  # Limit to most recent 20
+                # Get assignment/course info
+                assignment_info = None
+                if session.user_assignment_id:
+                    ua = db.query(UserAssignment).filter(
+                        UserAssignment.id == session.user_assignment_id
+                    ).first()
+                    if ua:
+                        assignment = db.query(Assignment).filter(
+                            Assignment.id == ua.assignment_id
+                        ).first()
+                        if assignment:
+                            course = db.query(Course).filter(
+                                Course.id == assignment.course_id
+                            ).first()
+                            assignment_info = {
+                                "assignment_id": assignment.id,
+                                "title": assignment.title,
+                                "course": course.title if course else None,
+                            }
+                
+                session_details.append({
+                    "date": session.date.isoformat(),
+                    "minutes": session.minutes,
+                    "hours": round(session.minutes / 60.0, 2),
+                    "assignment": assignment_info,
+                    "focus_rating": session.focus_rating_1to5,
+                    "quality_rating": session.quality_rating_1to5,
+                    "source": session.source,
+                    "notes": session.notes,
+                })
+            
+            result = {
+                "user_id": resolved_user_id,
+                "period_days": days,
+                "statistics": {
+                    "total_sessions": len(sessions),
+                    "total_minutes": total_minutes,
+                    "total_hours": round(total_hours, 2),
+                    "average_session_minutes": round(total_minutes / len(sessions), 1) if sessions else 0,
+                    "average_focus_rating": round(avg_focus, 2) if avg_focus else None,
+                    "average_quality_rating": round(avg_quality, 2) if avg_quality else None,
+                },
+                "recent_sessions": session_details,
+            }
+            
+            if assignment_id:
+                result["filtered_by_assignment_id"] = assignment_id
+
+        if _logger:
+            try:
+                _logger.info(
+                    "TOOL DONE: get_study_progress | duration=%.2fs | sessions=%d | total_hours=%.1f",
+                    perf_counter() - start,
+                    len(sessions),
+                    total_hours
+                )
+            except Exception:
+                pass
+
+        return json.dumps(result, indent=2)
+
+    except Exception as e:
+        if _logger:
+            try:
+                _logger.error("TOOL ERROR: get_study_progress | error=%s", str(e))
+            except Exception:
+                pass
+        return json.dumps({"error": f"Failed to get study progress: {str(e)}"}, indent=2)
