@@ -190,28 +190,34 @@ export const api = {
 
   // Autonomous Mode endpoints
   async getAutonomousConfig() {
-    return request<AutonomousConfigResponse>("/api/autonomous/config", {
+    return request<AutonomousConfigResponse>("/autonomous/config", {
       method: "GET",
     });
   },
 
   async updateAutonomousConfig(config: AutonomousConfigPayload) {
-    return request<SimpleStatusResponse>("/api/autonomous/config", {
+    return request<SimpleStatusResponse>("/autonomous/config", {
       method: "PUT",
       body: JSON.stringify(config),
     });
   },
 
   async triggerAutonomousExecution() {
-    return request<SimpleStatusResponse>("/api/autonomous/execute", {
+    return request<SimpleStatusResponse>("/autonomous/execute", {
       method: "POST",
     });
   },
 
   async testDiscordWebhook(webhookUrl: string) {
-    return request<SimpleStatusResponse>("/api/autonomous/test-webhook", {
+    return request<SimpleStatusResponse>("/autonomous/test-webhook", {
       method: "POST",
       body: JSON.stringify({ webhook_url: webhookUrl }),
+    });
+  },
+
+  async testAllNotifications() {
+    return request<SimpleStatusResponse>("/autonomous/test-notifications", {
+      method: "POST",
     });
   },
 };

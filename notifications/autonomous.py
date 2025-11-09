@@ -80,25 +80,30 @@ async def send_ntfy_notification(
         return False
         
     try:
-        headers = {}
+        # Use JSON format for better Unicode/emoji support
+        payload = {
+            "topic": topic,
+            "message": message,
+            "priority": priority,
+        }
+        
         if title:
-            headers["Title"] = title
+            payload["title"] = title
+        
         if tags:
-            headers["Tags"] = ",".join(tags)
-        headers["Priority"] = str(priority)
+            payload["tags"] = tags
         
         async with httpx.AsyncClient() as client:
             response = await client.post(
-                f"https://ntfy.sh/{topic}",
-                data=message.encode('utf-8'),
-                headers=headers,
+                "https://ntfy.sh",
+                json=payload,  # JSON automatically handles UTF-8
                 timeout=10
             )
             response.raise_for_status()
             logger.info(f"ntfy notification sent to {topic}: {title or message[:50]}")
             return True
     except Exception as e:
-        logger.error(f"Failed to send ntfy notification: {e}")
+        logger.error(f"Failed to send ntfy notification: {e}", exc_info=True)
         return False
 
 
@@ -114,7 +119,7 @@ async def send_tool_completion_notification(
 
     Args:
         webhook_url: Discord webhook URL
-        tool_type: Type of tool (scheduler, assessment, suggestions, exam_generation)
+        tool_type: Type of tool (scheduler, assessment, suggestions, exam_generation, context_update, query)
         tool_name: Human-readable name
         result: Tool result data
         ntfy_topic: Optional ntfy topic (if provided, also sends to ntfy)
@@ -128,6 +133,8 @@ async def send_tool_completion_notification(
         "assessment": {"icon": "📊", "color": 15844367, "emoji": "bar_chart"},  # Gold
         "suggestions": {"icon": "💡", "color": 5763719, "emoji": "bulb"},  # Green
         "exam_generation": {"icon": "🧠", "color": 10181046, "emoji": "brain"},  # Purple
+        "context_update": {"icon": "🔄", "color": 5793266, "emoji": "arrows_counterclockwise"},  # Teal
+        "query": {"icon": "🔍", "color": 9807270, "emoji": "mag"},  # Gray
     }
 
     config = tool_config.get(tool_type, {"icon": "✅", "color": 5814783, "emoji": "white_check_mark"})
@@ -155,72 +162,49 @@ async def send_tool_completion_notification(
 
 
 def _format_tool_result(tool_type: str, result: Dict[str, Any]) -> str:
-    """Format tool result for Discord notification."""
+    """Format tool result for mobile notification - keep it SHORT!"""
     
     if tool_type == "scheduler":
-        # Scheduling notification
+        # Scheduling notification - mobile friendly
         meeting_name = result.get("meeting_name", "Study Session")
-        start_time = result.get("start_time", "")
-        duration = result.get("duration_minutes", "")
-
-        description = f"**Meeting**: {meeting_name}\n"
+        start_time = result.get("start_time", result.get("scheduled_time", ""))
+        
+        # Parse and format time nicely
         if start_time:
-            description += f"**Time**: {start_time}\n"
-        if duration:
-            description += f"**Duration**: {duration} minutes\n"
-        if result.get("event_link"):
-            description += f"[View in Calendar]({result['event_link']})"
-
-        return description
-
+            try:
+                from datetime import datetime
+                dt = datetime.fromisoformat(start_time.replace('Z', '+00:00'))
+                time_str = dt.strftime("%b %d at %I:%M %p")
+            except:
+                time_str = start_time
+            return f"📅 {meeting_name}\n{time_str}"
+        
+        return f"📅 {meeting_name} scheduled!"
+    
     elif tool_type == "suggestions":
-        # Suggestions notification
-        suggestions = result.get("suggestions", [])
+        # Suggestions notification - show top priority only
+        if isinstance(result, list):
+            suggestions = result
+        else:
+            suggestions = result.get("suggestions", [])
+        
+        if not suggestions:
+            return "No urgent suggestions right now"
+        
         count = len(suggestions)
-
-        description = f"Generated **{count}** new study suggestion{'s' if count != 1 else ''}!\n\n"
-
-        # Show first 3 suggestions
-        for i, sugg in enumerate(suggestions[:3]):
-            title = sugg.get("title", "")
-            description += f"{i+1}. {title}\n"
-
-        if count > 3:
-            description += f"\n_...and {count - 3} more_"
-
-        return description
-
-    elif tool_type == "assessment":
-        # Assessment notification
-        effort = result.get("effort_estimates", {})
-        hours = effort.get("most_likely_hours", effort.get("effort_hours_most", "N/A"))
-        difficulty = result.get("difficulty_1to5", "N/A")
-        risk = result.get("risk_score_0to100", "N/A")
-
-        description = f"**Assignment Assessed**\n\n"
-        description += f"📊 **Effort**: {hours} hours\n"
-        description += f"⚡ **Difficulty**: {difficulty}/5\n"
-        description += f"⚠️ **Risk Score**: {risk}/100\n"
-
-        milestones = result.get("milestones", [])
-        if milestones:
-            description += f"\n**Milestones**: {len(milestones)} identified"
-
-        return description
-
-    elif tool_type == "exam_generation":
-        # Exam generation notification
-        questions_count = result.get("questions_count", result.get("total_questions", "N/A"))
-
-        description = f"**Exam Generated**\n\n"
-        description += f"📝 **Questions**: {questions_count}\n"
-
-        if result.get("exam_file"):
-            description += f"[Download Exam]({result['exam_file']})"
-
-        return description
-
-    return "Task completed successfully! ✅"
+        if count == 0:
+            return "No urgent suggestions right now"
+        
+        # Show only the first (most important) suggestion
+        first = suggestions[0]
+        title = first.get("title", "Study reminder")
+        
+        if count == 1:
+            return f"💡 {title}"
+        else:
+            return f"💡 {title}\n+{count-1} more"
+    
+    return "✅ Task completed"
 
 
 async def send_execution_summary(

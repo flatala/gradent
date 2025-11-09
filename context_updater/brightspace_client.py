@@ -70,9 +70,9 @@ class MockBrightspaceClient:
             101: [  # Reinforcement Learning
                 {
                     "Id": 1001,
-                    "Name": "Markov Decision Processes - Implementation",
+                    "Name": "[BRIGHTSPACE] Assignment 4: Reinforcement Learning",
                     "Instructions": {
-                        "Text": "Implement value iteration and policy iteration for gridworld MDPs.",
+                        "Text": "Implement value iteration and policy iteration algorithms for gridworld MDPs. Test on multiple environments and compare convergence rates.",
                         "Html": "<p>Implement value iteration and policy iteration for gridworld MDPs.</p>"
                     },
                     "DueDate": (now + timedelta(days=14)).isoformat(),
@@ -84,9 +84,9 @@ class MockBrightspaceClient:
                 },
                 {
                     "Id": 1002,
-                    "Name": "Q-Learning and Deep RL Project",
+                    "Name": "[BRIGHTSPACE] Project 3: Deep Q-Network on Atari",
                     "Instructions": {
-                        "Text": "Train a DQN agent on Atari games and analyze performance.",
+                        "Text": "Train a Deep Q-Network agent on Atari games (Pong or Breakout). Implement experience replay and target networks. Analyze learning curves and performance.",
                         "Html": "<p>Train a DQN agent on Atari games.</p>"
                     },
                     "DueDate": (now + timedelta(days=28)).isoformat(),
@@ -97,9 +97,9 @@ class MockBrightspaceClient:
             102: [  # Machine Learning
                 {
                     "Id": 2001,
-                    "Name": "Supervised Learning Analysis",
+                    "Name": "[BRIGHTSPACE] Project 1: Supervised Learning Comparison",
                     "Instructions": {
-                        "Text": "Compare decision trees, neural nets, boosting, SVM, and kNN on two datasets.",
+                        "Text": "Compare performance of decision trees, neural networks, boosting, SVM, and k-NN on two datasets. Use cross-validation and report detailed metrics.",
                         "Html": "<p>Compare ML algorithms on datasets.</p>"
                     },
                     "DueDate": (now + timedelta(days=21)).isoformat(),
@@ -110,9 +110,9 @@ class MockBrightspaceClient:
             103: [  # Computer Vision
                 {
                     "Id": 3001,
-                    "Name": "Image Filtering and Hybrid Images",
+                    "Name": "[BRIGHTSPACE] Assignment 2: Hybrid Images",
                     "Instructions": {
-                        "Text": "Implement Gaussian and Laplacian pyramids, create hybrid images.",
+                        "Text": "Implement Gaussian and Laplacian pyramids. Create hybrid images using frequency domain filtering. Submit code, results, and analysis report.",
                         "Html": "<p>Image filtering assignment.</p>"
                     },
                     "DueDate": (now + timedelta(days=10)).isoformat(),

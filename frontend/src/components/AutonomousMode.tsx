@@ -48,6 +48,7 @@ export default function AutonomousMode() {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
+  const [testingAll, setTestingAll] = useState(false);
   const { toast } = useToast();
 
   // Load current configuration
@@ -140,6 +141,25 @@ export default function AutonomousMode() {
       });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleTestAll = async () => {
+    setTestingAll(true);
+    try {
+      await api.testAllNotifications();
+      toast({
+        title: "Test notifications sent!",
+        description: "Check your Discord and ntfy for 5 demo notifications.",
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to send test notifications. Make sure you've configured at least one channel.",
+        variant: "destructive",
+      });
+    } finally {
+      setTestingAll(false);
     }
   };
 
@@ -268,14 +288,24 @@ export default function AutonomousMode() {
             </div>
           )}
 
-          <Button
-            onClick={handleRunNow}
-            className="w-full"
-            disabled={loading}
-          >
-            <Play className="h-4 w-4 mr-2" />
-            Run Now
-          </Button>
+          <div className="flex gap-2">
+            <Button
+              onClick={handleRunNow}
+              className="flex-1"
+              disabled={loading}
+            >
+              <Play className="h-4 w-4 mr-2" />
+              Run Now
+            </Button>
+            <Button
+              onClick={handleTestAll}
+              variant="outline"
+              className="flex-1"
+              disabled={testingAll}
+            >
+              {testingAll ? "Sending..." : "Test Notifications"}
+            </Button>
+          </div>
         </CardContent>
       </Card>
 

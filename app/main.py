@@ -7,7 +7,7 @@ import json
 import logging
 import os
 import shutil
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, Dict, List, Literal, Optional
 
@@ -34,6 +34,11 @@ from agents.task_agents.progress_tracking.tools import (
 from database.connection import get_db_session
 from database.models import Suggestion, SuggestionStatus
 from shared.config import Configuration
+from notifications.autonomous import (
+    send_discord_embed,
+    send_tool_completion_notification,
+    send_ntfy_notification,
+)
 
 # --------------------------------------------------------------------------- #
 # Environment / logging setup
@@ -89,6 +94,34 @@ except ValueError as exc:  # pragma: no cover - configuration handled at runtime
 _CHAT_SESSIONS: Dict[str, MainAgent] = {}
 _CHAT_LOCK = asyncio.Lock()
 
+# --------------------------------------------------------------------------- #
+# Autonomous Mode Configuration
+# --------------------------------------------------------------------------- #
+
+# Frequency to minutes mapping
+FREQUENCY_TO_MINUTES = {
+    "15min": 15,
+    "30min": 30,
+    "1hour": 60,
+    "3hours": 180,
+    "6hours": 360,
+    "12hours": 720,
+    "24hours": 1440,
+}
+
+# Get default ntfy topic from environment
+DEFAULT_NTFY_TOPIC = os.getenv("NTFY_DEFAULT_TOPIC", "gradent-ai-test-123")
+
+# Autonomous mode configuration
+AUTONOMOUS_CONFIG = {
+    "enabled": False,
+    "frequency": "1hour",
+    "discord_webhook": None,
+    "ntfy_topic": DEFAULT_NTFY_TOPIC,
+    "last_execution": None,
+    "next_execution": None,
+}
+
 
 class ToolCallTracker(BaseCallbackHandler):
     """Callback handler to track tool calls during agent execution.
@@ -111,12 +144,21 @@ class ToolCallTracker(BaseCallbackHandler):
         self.send_notifications = send_notifications
         self.discord_webhook = discord_webhook
         self.ntfy_topic = ntfy_topic
+        self.event_loop = None  # Store the event loop for thread-safe async calls
+        # Only track tools that should trigger notifications (scheduler, suggestions)
+        # Skip verbose/internal tools (context_update, queries, assessments)
         self.tool_map = {
             "run_scheduler_workflow": {"type": "scheduler", "name": "Schedule Meeting"},
-            "assess_assignment": {"type": "assessment", "name": "Assess Assignment"},
             "generate_suggestions": {"type": "suggestions", "name": "Generate Suggestions"},
-            "run_exam_api_workflow": {"type": "exam_generation", "name": "Generate Exam"},
         }
+        
+        # Try to capture the event loop at initialization time
+        try:
+            self.event_loop = asyncio.get_running_loop()
+            logger.info("[TRACKER] Captured event loop at initialization")
+        except RuntimeError:
+            # No running loop yet - will try to get it later
+            logger.debug("[TRACKER] No event loop at initialization")
     
     def on_tool_start(self, serialized: Dict[str, Any], input_str: str, **kwargs: Any) -> None:
         """Called when a tool starts executing."""
@@ -151,16 +193,22 @@ class ToolCallTracker(BaseCallbackHandler):
                     # Import here to avoid circular dependency
                     from notifications.autonomous import send_tool_completion_notification
                     
-                    # Fire and forget - don't block tool execution
-                    asyncio.create_task(
-                        send_tool_completion_notification(
-                            webhook_url=self.discord_webhook or "",
-                            tool_type=last_tool["tool_type"],
-                            tool_name=last_tool["tool_name"],
-                            result=last_tool.get("result", {}),
-                            ntfy_topic=self.ntfy_topic,
+                    # Fire and forget in background - thread-safe async execution
+                    if self.event_loop and not self.event_loop.is_closed():
+                        # We have a valid event loop - schedule the notification
+                        import concurrent.futures
+                        asyncio.run_coroutine_threadsafe(
+                            send_tool_completion_notification(
+                                webhook_url=self.discord_webhook or "",
+                                tool_type=last_tool["tool_type"],
+                                tool_name=last_tool["tool_name"],
+                                result=last_tool.get("result", {}),
+                                ntfy_topic=self.ntfy_topic,
+                            ),
+                            self.event_loop
                         )
-                    )
+                    else:
+                        logger.warning("[AUTONOMOUS MODE] No valid event loop available for notifications")
                 else:
                     logger.debug(f"[CHAT MODE] No notifications sent for tool: {last_tool['tool_name']}")
     
@@ -437,6 +485,31 @@ class ExamResponse(BaseModel):
 class SimpleStatusResponse(BaseModel):
     status: str
     message: str
+
+
+# --------------------------------------------------------------------------- #
+# Autonomous Mode Models
+# --------------------------------------------------------------------------- #
+
+class AutonomousConfigPayload(BaseModel):
+    enabled: bool
+    frequency: Literal["15min", "30min", "1hour", "3hours", "6hours", "12hours", "24hours"]
+    discord_webhook: Optional[str] = None
+    ntfy_topic: Optional[str] = Field(default="gradent-ai-test-123")
+
+
+class AutonomousConfigResponse(AutonomousConfigPayload):
+    last_execution: Optional[str] = None
+    next_execution: Optional[str] = None
+
+
+class TestWebhookPayload(BaseModel):
+    webhook_url: str
+
+
+# --------------------------------------------------------------------------- #
+# Helper Functions
+# --------------------------------------------------------------------------- #
 
 
 # --------------------------------------------------------------------------- #
@@ -875,6 +948,325 @@ async def cleanup_uploads() -> SimpleStatusResponse:
         status="ok",
         message=f"Cleaned up {count} file(s)",
     )
+
+
+# --------------------------------------------------------------------------- #
+# Autonomous Mode Functions
+# --------------------------------------------------------------------------- #
+
+async def autonomous_scheduler_loop():
+    """Background task that runs autonomous agent on configured schedule."""
+    logger.info("🤖 Autonomous scheduler started - checking every minute")
+    
+    while True:
+        await asyncio.sleep(60)  # Check every minute
+        
+        if not AUTONOMOUS_CONFIG.get("enabled"):
+            continue  # Skip if disabled
+        
+        now = datetime.utcnow()
+        last_exec = AUTONOMOUS_CONFIG.get("last_execution")
+        frequency = AUTONOMOUS_CONFIG.get("frequency", "1hour")
+        
+        # Calculate if execution is due
+        should_run = False
+        if last_exec is None:
+            should_run = True  # Never run before
+        else:
+            try:
+                last_dt = datetime.fromisoformat(last_exec)
+                minutes_since = (now - last_dt).total_seconds() / 60
+                required_minutes = FREQUENCY_TO_MINUTES.get(frequency, 60)
+                
+                if minutes_since >= required_minutes:
+                    should_run = True
+                    logger.info(f"✓ Time to run: {minutes_since:.1f} min >= {required_minutes} min")
+            except Exception as e:
+                logger.error(f"Error parsing last_execution: {e}")
+        
+        if should_run:
+            logger.info(f"⚡ Triggering autonomous execution (frequency: {frequency})")
+            try:
+                await execute_autonomous_agent()
+                
+                # Update execution times
+                AUTONOMOUS_CONFIG["last_execution"] = now.isoformat()
+                next_run = now + timedelta(minutes=FREQUENCY_TO_MINUTES.get(frequency, 60))
+                AUTONOMOUS_CONFIG["next_execution"] = next_run.isoformat()
+                logger.info(f"✓ Next execution at: {next_run.isoformat()}")
+                
+            except Exception as e:
+                logger.error(f"❌ Autonomous execution failed: {e}")
+
+
+async def execute_autonomous_agent():
+    """Actually run the autonomous agent with notifications."""
+    ntfy_topic = AUTONOMOUS_CONFIG.get("ntfy_topic")
+    discord_webhook = AUTONOMOUS_CONFIG.get("discord_webhook")
+    
+    logger.info("[AUTONOMOUS] Starting execution")
+    
+    # Send start notification
+    if ntfy_topic:
+        await send_ntfy_notification(
+            "🤖 Checking for updates & planning study sessions...",
+            topic=ntfy_topic,
+            title="Agent Started",
+            priority=3,  # Default priority
+            tags=["robot"]
+        )
+    
+    # Create tracker WITH notifications enabled
+    tracker = ToolCallTracker(
+        send_notifications=True,  # ← Enable notifications for autonomous mode!
+        discord_webhook=discord_webhook,
+        ntfy_topic=ntfy_topic
+    )
+    
+    try:
+        # ✅ Use the real executor agent!
+        from agents.executor_agent.executor import ExecutorAgent
+        
+        executor = ExecutorAgent(config=AGENT_CONFIG)
+        
+        # Run the main workflow with notification callbacks
+        # The tracker will automatically send notifications as tools execute
+        result = await executor.run_context_update_and_assess(
+            user_id=1,  # TODO: Get from config or session context if needed
+            auto_schedule=True,
+            callbacks=[tracker]  # ← This passes notifications to tracker!
+        )
+        
+        logger.info(f"[AUTONOMOUS] Executor result: {result}")
+        
+        # Send completion notification based on result
+        if ntfy_topic:
+            if result.get("success"):
+                await send_ntfy_notification(
+                    "✅ All caught up! Check your calendar.",
+                    topic=ntfy_topic,
+                    title="Study Planning Complete",
+                    priority=3,
+                    tags=["white_check_mark"]
+                )
+            else:
+                error = result.get("error", "Unknown error")
+                await send_ntfy_notification(
+                    f"❌ Something went wrong\n{error[:100]}",
+                    topic=ntfy_topic,
+                    title="Agent Error",
+                    priority=4,
+                    tags=["x", "warning"]
+                )
+        
+        # Also send to Discord if configured
+        if discord_webhook:
+            if result.get("success"):
+                await send_discord_embed(
+                    discord_webhook,
+                    "✅ Autonomous Agent Completed",
+                    f"Successfully completed workflow.\n\n{result.get('agent_output', 'Task completed')}",
+                    3066993  # Green
+                )
+            else:
+                await send_discord_embed(
+                    discord_webhook,
+                    "❌ Autonomous Agent Failed",
+                    f"Error occurred during execution.\n\n{result.get('error', 'Unknown error')}",
+                    15158332  # Red
+                )
+        
+    except Exception as e:
+        logger.error(f"[AUTONOMOUS] Execution error: {e}", exc_info=True)
+        
+        # Send error notification
+        if ntfy_topic:
+            await send_ntfy_notification(
+                f"❌ Autonomous agent crashed\n\n{str(e)}",
+                topic=ntfy_topic,
+                title="❌ Critical Error",
+                priority=5,
+                tags=["x", "fire"]
+            )
+        
+        if discord_webhook:
+            await send_discord_embed(
+                discord_webhook,
+                "❌ Autonomous Agent Crashed",
+                f"Critical error occurred.\n\n```\n{str(e)}\n```",
+                15158332  # Red
+            )
+        
+        raise
+    
+    logger.info("[AUTONOMOUS] Execution completed")
+
+
+# --------------------------------------------------------------------------- #
+# Autonomous Mode API Endpoints
+# --------------------------------------------------------------------------- #
+
+@app.get("/api/autonomous/config", response_model=AutonomousConfigResponse)
+async def get_autonomous_config():
+    """Get current autonomous mode configuration."""
+    return AutonomousConfigResponse(**AUTONOMOUS_CONFIG)
+
+
+@app.put("/api/autonomous/config", response_model=SimpleStatusResponse)
+async def update_autonomous_config(payload: AutonomousConfigPayload):
+    """Update autonomous mode configuration."""
+    global AUTONOMOUS_CONFIG
+    
+    AUTONOMOUS_CONFIG["enabled"] = payload.enabled
+    AUTONOMOUS_CONFIG["frequency"] = payload.frequency
+    AUTONOMOUS_CONFIG["discord_webhook"] = payload.discord_webhook
+    AUTONOMOUS_CONFIG["ntfy_topic"] = payload.ntfy_topic
+    
+    logger.info(f"Autonomous config updated: enabled={payload.enabled}, frequency={payload.frequency}, ntfy_topic={payload.ntfy_topic}")
+    
+    return SimpleStatusResponse(status="ok", message="Configuration updated")
+
+
+@app.post("/api/autonomous/execute", response_model=SimpleStatusResponse)
+async def trigger_autonomous_execution():
+    """Manually trigger autonomous agent execution (independent of schedule)."""
+    logger.info("Manual trigger of autonomous execution")
+    
+    try:
+        await execute_autonomous_agent()
+        
+        # Update last execution time
+        now = datetime.utcnow()
+        AUTONOMOUS_CONFIG["last_execution"] = now.isoformat()
+        frequency = AUTONOMOUS_CONFIG.get("frequency", "1hour")
+        next_run = now + timedelta(minutes=FREQUENCY_TO_MINUTES.get(frequency, 60))
+        AUTONOMOUS_CONFIG["next_execution"] = next_run.isoformat()
+        
+        return SimpleStatusResponse(status="ok", message="Execution completed")
+    except Exception as e:
+        logger.error(f"Manual autonomous execution failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/autonomous/test-webhook", response_model=SimpleStatusResponse)
+async def test_discord_webhook(payload: TestWebhookPayload):
+    """Send a test notification to Discord webhook."""
+    success = await send_discord_embed(
+        payload.webhook_url,
+        "🧪 Test Notification",
+        "This is a test from GradEnt AI Autonomous Mode! 🤖\n\nYour webhook is working correctly!",
+        5814783  # Teal
+    )
+    
+    if success:
+        return SimpleStatusResponse(status="ok", message="Test notification sent")
+    else:
+        raise HTTPException(status_code=400, detail="Failed to send notification")
+
+
+@app.post("/api/autonomous/test-notifications", response_model=SimpleStatusResponse)
+async def test_all_notifications():
+    """Send demo notifications to test the full notification flow.
+    
+    Simulates what happens during autonomous execution by sending:
+    1. Agent started notification
+    2. Fake tool completion notifications (context update, assessment, scheduler)
+    3. Agent completed notification
+    """
+    ntfy_topic = AUTONOMOUS_CONFIG.get("ntfy_topic")
+    discord_webhook = AUTONOMOUS_CONFIG.get("discord_webhook")
+    
+    if not ntfy_topic and not discord_webhook:
+        raise HTTPException(
+            status_code=400,
+            detail="No notification channels configured. Please set ntfy topic or Discord webhook."
+        )
+    
+    logger.info("[TEST] Sending demo notifications")
+    
+    try:
+        # 1. Agent started
+        if ntfy_topic:
+            await send_ntfy_notification(
+                "🤖 Testing notifications...",
+                topic=ntfy_topic,
+                title="Agent Started",
+                priority=3,
+                tags=["robot"]
+            )
+        if discord_webhook:
+            await send_discord_embed(
+                discord_webhook,
+                "🤖 Demo - Agent Started",
+                "This is a test notification showing what happens when autonomous mode runs.",
+                5814783
+            )
+        
+        await asyncio.sleep(2)
+        
+        # 2. Scheduler notification (only important ones get sent)
+        await send_tool_completion_notification(
+            webhook_url=discord_webhook or "",
+            tool_type="scheduler",
+            tool_name="Schedule Meeting",
+            result={
+                "meeting_name": "Study: Calculus Chapter 5",
+                "scheduled_time": (datetime.utcnow() + timedelta(days=1)).isoformat()
+            },
+            ntfy_topic=ntfy_topic
+        )
+        
+        await asyncio.sleep(2)
+        
+        # 3. Suggestions notification (only important ones)
+        await send_tool_completion_notification(
+            webhook_url=discord_webhook or "",
+            tool_type="suggestions",
+            tool_name="Study Suggestions",
+            result=[
+                {"title": "Review Calculus - Exam in 3 days", "priority": "high"},
+                {"title": "Start Biology project", "priority": "medium"},
+            ],
+            ntfy_topic=ntfy_topic
+        )
+        
+        await asyncio.sleep(2)
+        
+        # 4. Agent completed
+        if ntfy_topic:
+            await send_ntfy_notification(
+                "✅ All caught up! Check your calendar.",
+                topic=ntfy_topic,
+                title="Study Planning Complete",
+                priority=3,
+                tags=["white_check_mark"]
+            )
+        if discord_webhook:
+            await send_discord_embed(
+                discord_webhook,
+                "✅ Demo - Agent Completed",
+                "Test completed! You'll see similar notifications when autonomous mode runs.",
+                3066993
+            )
+        
+        logger.info("[TEST] Demo notifications sent successfully")
+        return SimpleStatusResponse(
+            status="ok",
+            message="Test notifications sent! Check your Discord/ntfy."
+        )
+        
+    except Exception as e:
+        logger.error(f"[TEST] Failed to send demo notifications: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to send notifications: {str(e)}")
+
+
+# Startup event
+@app.on_event("startup")
+async def startup_event():
+    """Start background tasks on app startup."""
+    # Start autonomous scheduler in background
+    asyncio.create_task(autonomous_scheduler_loop())
+    logger.info("✓ Autonomous scheduler task started")
 
 
 # --------------------------------------------------------------------------- #
