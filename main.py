@@ -10,8 +10,8 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from shared.config import Configuration
-from main_agent import MainAgent
-from main_agent.agent import enable_chat_logging
+from agents import MainAgent
+from agents.chat_agent.agent import enable_chat_logging
 
 
 async def main(enable_logging: bool = False, log_level: str = "info"):

@@ -60,4 +60,7 @@ token.pickle
 # Databases
 data/
 
+# Node.js
+node_modules/
+
 poetry.lock
