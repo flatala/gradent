@@ -12,12 +12,6 @@ import {
   RefreshCw,
   Sparkles,
 } from "lucide-react";
-import {
-  SidebarProvider,
-  SidebarInset,
-  SidebarTrigger,
-} from "@/components/ui/sidebar";
-import { ChatSidebar } from "./ChatSidebar";
 import AssignmentCard from "./AssignmentCard";
 import MockExam from "./MockExam";
 import ResultsView from "./ResultsView";
@@ -27,6 +21,8 @@ import { CalendarSync } from "./CalendarSync";
 import { api } from "@/lib/api";
 import type { SuggestionRecord } from "@/lib/types";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Skeleton } from "@/components/ui/skeleton";
+import { useToast } from "@/components/ui/use-toast";
 
 const mockAssignments: Array<{
   id: string;
@@ -86,6 +82,7 @@ const Dashboard = () => {
   const [suggestions, setSuggestions] = useState<SuggestionRecord[]>([]);
   const [suggestionsLoading, setSuggestionsLoading] = useState(false);
   const [suggestionsError, setSuggestionsError] = useState<string | null>(null);
+  const { toast } = useToast();
 
   const handleConnect = () => {
     setShowConsent(true);
@@ -95,6 +92,10 @@ const Dashboard = () => {
     setShowConsent(false);
     setIsConnected(true);
     setSyncStatus("syncing");
+    toast({
+      title: "Services connected",
+      description: "We’re syncing your assignments and calendar now.",
+    });
 
     setTimeout(() => {
       setSyncStatus("synced");
@@ -164,6 +165,15 @@ const Dashboard = () => {
       fetchSuggestions();
     }
   }, [isConnected, syncStatus, fetchSuggestions]);
+
+  useEffect(() => {
+    if (syncStatus === "synced") {
+      toast({
+        title: "Sync complete",
+        description: "Your workspace is ready with the latest data.",
+      });
+    }
+  }, [syncStatus, toast]);
 
   const renderMainContent = () => {
     if (currentView === "exam") {
@@ -289,16 +299,41 @@ const Dashboard = () => {
                     <AlertDescription>{suggestionsError}</AlertDescription>
                   </Alert>
                 )}
-                {suggestionsLoading ? (
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    Fetching suggestions...
+                {suggestionsLoading && (
+                  <>
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Fetching suggestions...
+                    </div>
+                    <div className="space-y-3">
+                      {[1, 2, 3].map((item) => (
+                        <div
+                          key={item}
+                          className="rounded-lg border border-border/40 bg-background/60 p-4"
+                        >
+                          <Skeleton className="h-5 w-40 mb-2" />
+                          <Skeleton className="h-4 w-full mb-2" />
+                          <Skeleton className="h-4 w-3/4" />
+                        </div>
+                      ))}
+                    </div>
+                  </>
+                )}
+                {!suggestionsLoading && suggestions.length === 0 ? (
+                  <div className="space-y-3 text-sm text-muted-foreground">
+                    <p>
+                      You’re all set! As we learn more about your assignments,
+                      you’ll see tailored tips here. In the meantime, try these
+                      quick starters:
+                    </p>
+                    <ul className="list-disc space-y-1 pl-5 text-foreground/80">
+                      <li>Ask the assistant to summarize your next deadline.</li>
+                      <li>Log a recent study session to track progress.</li>
+                      <li>
+                        Generate a mock exam to review tricky course material.
+                      </li>
+                    </ul>
                   </div>
-                ) : suggestions.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">
-                    No suggestions yet. Generate a snapshot to see personalized
-                    recommendations.
-                  </p>
                 ) : (
                   <div className="space-y-3">
                     {suggestions.map((suggestion) => (
@@ -343,103 +378,86 @@ const Dashboard = () => {
   };
 
   return (
-    <SidebarProvider defaultOpen={true}>
-      <div className="min-h-screen flex w-full bg-background">
-        <ChatSidebar />
+    <>
+      <header className="flex flex-col gap-1 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h1 className="text-lg font-semibold bg-gradient-primary bg-clip-text text-transparent">
+            Study Autopilot
+          </h1>
+          <p className="text-xs text-muted-foreground">
+            Keep your assignments, study blocks, and reminders aligned.
+          </p>
+        </div>
+        {isConnected && syncStatus === "synced" && (
+          <Badge className="bg-success text-success-foreground">
+            <CheckCircle2 className="mr-1 h-3 w-3" /> Synced moments ago
+          </Badge>
+        )}
+      </header>
 
-        <SidebarInset className="flex-1">
-          <header className="sticky top-0 z-10 flex h-14 items-center gap-4 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 px-4">
-            <SidebarTrigger />
-            <div className="flex-1">
-              <h1 className="text-lg font-semibold bg-gradient-primary bg-clip-text text-transparent">
-                Study Autopilot
-              </h1>
-            </div>
-            {isConnected && syncStatus === "synced" && (
-              <Badge className="bg-success text-success-foreground">
-                <CheckCircle2 className="mr-1 h-3 w-3" />4 items synced • 2m ago
-              </Badge>
-            )}
-          </header>
-
-          <div className="flex-1 p-6">
-            <div className="max-w-7xl mx-auto">
-              {/* Stats Overview */}
-              {isConnected && (
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8 animate-slide-up">
-                  <Card className="p-4 bg-gradient-card border-border/50">
-                    <div className="flex items-center gap-3">
-                      <div className="p-2 rounded-lg bg-primary/10">
-                        <BookOpen className="h-5 w-5 text-primary" />
-                      </div>
-                      <div>
-                        <p className="text-2xl font-bold">3</p>
-                        <p className="text-sm text-muted-foreground">
-                          Active Tasks
-                        </p>
-                      </div>
-                    </div>
-                  </Card>
-
-                  <Card className="p-4 bg-gradient-card border-border/50">
-                    <div className="flex items-center gap-3">
-                      <div className="p-2 rounded-lg bg-accent/10">
-                        <Brain className="h-5 w-5 text-accent" />
-                      </div>
-                      <div>
-                        <p className="text-2xl font-bold">12h</p>
-                        <p className="text-sm text-muted-foreground">
-                          Scheduled
-                        </p>
-                      </div>
-                    </div>
-                  </Card>
-
-                  <Card className="p-4 bg-gradient-card border-border/50">
-                    <div className="flex items-center gap-3">
-                      <div className="p-2 rounded-lg bg-success/10">
-                        <TrendingUp className="h-5 w-5 text-success" />
-                      </div>
-                      <div>
-                        <p className="text-2xl font-bold">87%</p>
-                        <p className="text-sm text-muted-foreground">
-                          Avg Score
-                        </p>
-                      </div>
-                    </div>
-                  </Card>
-
-                  <Card className="p-4 bg-gradient-card border-border/50">
-                    <div className="flex items-center gap-3">
-                      <div className="p-2 rounded-lg bg-warning/10">
-                        <Calendar className="h-5 w-5 text-warning" />
-                      </div>
-                      <div>
-                        <p className="text-2xl font-bold">5</p>
-                        <p className="text-sm text-muted-foreground">
-                          Days Until Exam
-                        </p>
-                      </div>
-                    </div>
-                  </Card>
+      <div className="space-y-8 px-4 py-6">
+        {isConnected && (
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-4 animate-slide-up">
+            <Card className="p-4 bg-gradient-card border-border/50">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-lg bg-primary/10">
+                  <BookOpen className="h-5 w-5 text-primary" />
                 </div>
-              )}
+                <div>
+                  <p className="text-2xl font-bold">3</p>
+                  <p className="text-sm text-muted-foreground">Active Tasks</p>
+                </div>
+              </div>
+            </Card>
 
-              {/* Main Content */}
-              {renderMainContent()}
-            </div>
+            <Card className="p-4 bg-gradient-card border-border/50">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-lg bg-accent/10">
+                  <Brain className="h-5 w-5 text-accent" />
+                </div>
+                <div>
+                  <p className="text-2xl font-bold">12h</p>
+                  <p className="text-sm text-muted-foreground">Scheduled</p>
+                </div>
+              </div>
+            </Card>
+
+            <Card className="p-4 bg-gradient-card border-border/50">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-lg bg-success/10">
+                  <TrendingUp className="h-5 w-5 text-success" />
+                </div>
+                <div>
+                  <p className="text-2xl font-bold">87%</p>
+                  <p className="text-sm text-muted-foreground">Avg Score</p>
+                </div>
+              </div>
+            </Card>
+
+            <Card className="p-4 bg-gradient-card border-border/50">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-lg bg-warning/10">
+                  <Calendar className="h-5 w-5 text-warning" />
+                </div>
+                <div>
+                  <p className="text-2xl font-bold">5</p>
+                  <p className="text-sm text-muted-foreground">Days Until Exam</p>
+                </div>
+              </div>
+            </Card>
           </div>
+        )}
 
-          {/* Modals */}
-          {showConsent && (
-            <ConsentModal
-              onConsent={handleConsent}
-              onClose={() => setShowConsent(false)}
-            />
-          )}
-        </SidebarInset>
+        {renderMainContent()}
       </div>
-    </SidebarProvider>
+
+      {showConsent && (
+        <ConsentModal
+          onConsent={handleConsent}
+          onClose={() => setShowConsent(false)}
+        />
+      )}
+    </>
   );
 };
 
