@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { Send, Bot, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -25,8 +25,19 @@ export function ChatSidebar() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const SESSION_ID = "dashboard-assistant";
-  
-  const { addToolCall, completeToolCall, failToolCall, clearToolCalls } = useWorkflow();
+
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  const { addToolCall, addToolCalls, completeToolCall, failToolCall, clearToolCalls } = useWorkflow();
+
+  // Auto-scroll to bottom when messages change
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  };
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages]);
 
   useEffect(() => {
     let mounted = true;
@@ -95,48 +106,87 @@ export function ChatSidebar() {
       
       if (response.tool_calls && Array.isArray(response.tool_calls) && response.tool_calls.length > 0) {
         console.log(`Processing ${response.tool_calls.length} tool calls from backend`);
-        
-        response.tool_calls.forEach((toolCall, index) => {
-          console.log(`\n=== Tool Call ${index + 1} ===`);
-          console.log("Full tool call object:", toolCall);
-          console.log("Tool name:", toolCall.tool_name);
-          console.log("Tool type:", toolCall.tool_type);
-          console.log("Status:", toolCall.status);
-          console.log("Result:", toolCall.result);
-          console.log("Result type:", typeof toolCall.result);
-          
-          const toolCallId = addToolCall({
-            type: toolCall.tool_type,
-            status: toolCall.status === "started" ? "in_progress" : toolCall.status,
-            title: toolCall.tool_name,
-            description: toolCall.status === "started" ? "Processing..." : undefined,
-            result: toolCall.result, // Pass result immediately
-          });
-          
-          // Show toast notification when tool starts
-          if (toolCall.status === "started") {
-            toast.loading(toolCall.tool_name, {
-              description: "Agent is working on this task...",
-              id: toolCallId,
-            });
-          }
-          
-          // If tool is completed or failed, update immediately
-          if (toolCall.status === "completed" && toolCall.result) {
-            console.log("Tool result:", toolCall.result);
-            completeToolCall(toolCallId, toolCall.result);
-            toast.success(toolCall.tool_name, {
-              description: "Task completed successfully!",
-              id: toolCallId,
-            });
-          } else if (toolCall.status === "failed" && toolCall.error) {
-            failToolCall(toolCallId, toolCall.error);
-            toast.error(toolCall.tool_name, {
-              description: toolCall.error,
-              id: toolCallId,
-            });
+
+        // Log ALL tool calls and their statuses
+        console.log('\n📋 ALL TOOL CALLS FROM BACKEND:');
+        response.tool_calls.forEach((tc, i) => {
+          console.log(`  ${i + 1}. "${tc.tool_name}" - status: "${tc.status}" - timestamp: ${tc.timestamp}`);
+        });
+
+        // Deduplicate tool calls by name, keeping only the latest status
+        // (Backend may send both "started" and "completed" for the same tool)
+        const toolCallMap = new Map<string, typeof response.tool_calls[0]>();
+
+        response.tool_calls.forEach(tc => {
+          const existing = toolCallMap.get(tc.tool_name);
+          // Keep the one with "completed" or "failed" status, or the latest timestamp
+          if (!existing ||
+              tc.status === "completed" ||
+              tc.status === "failed" ||
+              new Date(tc.timestamp) > new Date(existing.timestamp)) {
+            toolCallMap.set(tc.tool_name, tc);
           }
         });
+
+        const deduplicatedTools = Array.from(toolCallMap.values());
+        console.log(`\n🔄 Deduplicated to ${deduplicatedTools.length} unique tools`);
+
+        // Filter to only show completed or failed tools (ignore "started" status to avoid loading banners)
+        const completedTools = deduplicatedTools.filter(
+          tc => tc.status === "completed" || tc.status === "failed"
+        );
+
+        console.log(`\nFiltered to ${completedTools.length} completed/failed tools`);
+
+        if (completedTools.length > 0) {
+          console.log(`\n🎯 ADDING ${completedTools.length} COMPLETED TOOLS TO UI:`);
+
+          // Log each tool for debugging
+          completedTools.forEach((toolCall, index) => {
+            console.log(`\n=== Tool Call ${index + 1}/${completedTools.length} ===`);
+            console.log("Tool name:", toolCall.tool_name);
+            console.log("Tool type:", toolCall.tool_type);
+            console.log("Status:", toolCall.status);
+            console.log("Has result:", !!toolCall.result);
+            console.log("Has error:", !!toolCall.error);
+          });
+
+          // Build array of tool calls to add
+          const toolCallsToAdd = completedTools.map(toolCall => ({
+            type: toolCall.tool_type,
+            status: toolCall.status,
+            title: toolCall.tool_name,
+            description: undefined,
+            result: toolCall.result,
+            error: toolCall.error,
+          }));
+
+          console.log(`\n📦 Batching ${toolCallsToAdd.length} tool calls for state update...`);
+
+          // Add all tool calls in a single batch to avoid React state batching issues
+          const toolCallIds = addToolCalls(toolCallsToAdd);
+
+          console.log(`\n✅ Successfully added ${toolCallIds.length} tool call IDs:`, toolCallIds);
+
+          // Show toasts for each tool call
+          completedTools.forEach((toolCall, index) => {
+            const toolCallId = toolCallIds[index];
+
+            if (toolCall.status === "completed" && toolCall.result) {
+              toast.success(toolCall.tool_name, {
+                description: "Task completed successfully!",
+                id: toolCallId,
+              });
+            } else if (toolCall.status === "failed" && toolCall.error) {
+              toast.error(toolCall.tool_name, {
+                description: toolCall.error,
+                id: toolCallId,
+              });
+            }
+          });
+
+          console.log(`\n🎨 Created ${toolCallIds.length} banners in UI`);
+        }
       } else {
         console.log("No tool calls in backend response");
       }
@@ -268,6 +318,9 @@ export function ChatSidebar() {
               </div>
             </div>
           )}
+
+          {/* Invisible element to scroll to */}
+          <div ref={messagesEndRef} />
         </div>
       </SidebarContent>
 

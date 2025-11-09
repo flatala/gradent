@@ -141,6 +141,43 @@ class AssignmentAssessment(Base):
     assignment = relationship("Assignment", back_populates="assessments")
 
 
+class ExamResult(Base):
+    """Mock exam results for tracking student performance on practice exams.
+    
+    Used to adjust study time recommendations and identify weak areas.
+    """
+    __tablename__ = "exam_results"
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    assignment_id = Column(Integer, ForeignKey("assignments.id"), nullable=False)
+    
+    # Exam metadata
+    exam_type = Column(String, nullable=False)  # 'multiple-choice', 'open-ended', 'custom'
+    total_questions = Column(Integer, nullable=False)
+    
+    # Performance metrics
+    score = Column(Integer, nullable=False)  # Number of correct answers
+    percentage = Column(Float, nullable=False)  # Score as percentage
+    
+    # AI recommendations
+    study_hours_recommended = Column(Float, nullable=True)  # Extracted from AI recommendation
+    study_recommendation_text = Column(Text, nullable=True)  # Full AI recommendation
+    
+    # Detailed results (stored as JSON)
+    questions = Column(JSON, default=list)  # Question texts and options
+    user_answers = Column(JSON, default=dict)  # User's answers
+    correct_answers = Column(JSON, default=dict)  # Correct answers
+    
+    # Timestamps
+    completed_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    
+    # Relationships
+    user = relationship("User")
+    assignment = relationship("Assignment")
+
+
 class Suggestion(Base):
     """Generated suggestion ready for notification or scheduling."""
 

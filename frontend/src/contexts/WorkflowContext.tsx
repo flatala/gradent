@@ -18,6 +18,7 @@ type WorkflowContextType = {
   toolCalls: ToolCallVisualization[];
   isVisible: boolean;
   addToolCall: (toolCall: Omit<ToolCallVisualization, "id" | "timestamp">) => string;
+  addToolCalls: (toolCalls: Omit<ToolCallVisualization, "id" | "timestamp">[]) => string[];
   updateToolCall: (id: string, updates: Partial<ToolCallVisualization>) => void;
   completeToolCall: (id: string, result: any) => void;
   failToolCall: (id: string, error: string) => void;
@@ -81,6 +82,35 @@ export const WorkflowProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     return id;
   }, []);
 
+  const addToolCalls = useCallback((toolCallsToAdd: Omit<ToolCallVisualization, "id" | "timestamp">[]) => {
+    console.log(`\n🔧 WorkflowContext.addToolCalls called with ${toolCallsToAdd.length} tool calls`);
+
+    const ids: string[] = [];
+    const newToolCalls: ToolCallVisualization[] = toolCallsToAdd.map((toolCall, index) => {
+      // Ensure unique IDs by adding index to avoid same-millisecond collisions
+      const id = `tool-${Date.now()}-${index}-${Math.random().toString(36).substr(2, 9)}`;
+      ids.push(id);
+      console.log(`  - Creating tool call ${index + 1}: "${toolCall.title}" with ID: ${id}`);
+      return {
+        ...toolCall,
+        id,
+        timestamp: new Date(),
+      };
+    });
+
+    // Single state update for all tool calls
+    setToolCalls(prev => {
+      console.log(`  - Previous tool calls count: ${prev.length}`);
+      console.log(`  - Adding ${newToolCalls.length} new tool calls`);
+      console.log(`  - New total will be: ${prev.length + newToolCalls.length}`);
+      return [...prev, ...newToolCalls];
+    });
+
+    setIsVisible(true);
+    console.log(`✅ addToolCalls returning ${ids.length} IDs`);
+    return ids;
+  }, []);
+
   const updateToolCall = useCallback((id: string, updates: Partial<ToolCallVisualization>) => {
     setToolCalls(prev => prev.map(tc => 
       tc.id === id ? { ...tc, ...updates } : tc
@@ -117,6 +147,7 @@ export const WorkflowProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         toolCalls,
         isVisible,
         addToolCall,
+        addToolCalls,
         updateToolCall,
         completeToolCall,
         failToolCall,

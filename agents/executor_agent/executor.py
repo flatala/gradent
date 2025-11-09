@@ -27,6 +27,7 @@ from agents.shared.workflow_tools import (
     assess_assignment,
     run_context_update,
     get_unassessed_assignments,
+    generate_suggestions,
 )
 
 _logger = logging.getLogger("executor")
@@ -67,6 +68,7 @@ class ExecutorAgent:
         self,
         user_id: int,
         auto_schedule: bool = True,
+        callbacks: Optional[List] = None,
     ) -> Dict[str, Any]:
         """Update context from LMS, assess new/changed assignments, and schedule study sessions.
 
@@ -75,6 +77,7 @@ class ExecutorAgent:
         Args:
             user_id: Database user ID
             auto_schedule: If True, agent will automatically schedule study sessions
+            callbacks: Optional list of LangChain callbacks (e.g., for notifications)
 
         Returns:
             Dict with success, context_update, assessments, scheduled_sessions, duration_ms
@@ -93,7 +96,7 @@ class ExecutorAgent:
                 auto_schedule_status='ENABLED' if auto_schedule else 'DISABLED'
             )
 
-            tools = [run_context_update, get_unassessed_assignments, assess_assignment, run_scheduler_workflow]
+            tools = [run_context_update, get_unassessed_assignments, assess_assignment, generate_suggestions, run_scheduler_workflow]
 
             prompt = ChatPromptTemplate.from_messages([
                 ("system", EXECUTOR_SYSTEM_PROMPT),
@@ -104,9 +107,12 @@ class ExecutorAgent:
             agent = create_openai_tools_agent(self.llm, tools, prompt)
             agent_executor = AgentExecutor(agent=agent, tools=tools, verbose=True)
 
-            # Execute the agent
+            # Execute the agent with callbacks
             _logger.info("EXECUTOR: Running LLM agent with task prompt...")
-            agent_result = await agent_executor.ainvoke({"input": task_prompt})
+            agent_result = await agent_executor.ainvoke(
+                {"input": task_prompt},
+                config={"callbacks": callbacks} if callbacks else {}
+            )
 
             duration_ms = int((perf_counter() - start_time) * 1000)
 

@@ -63,9 +63,13 @@ export const WorkflowVisualizationSidebar = () => {
               </p>
             </div>
           ) : (
-            toolCalls.map((toolCall) => (
-              <ToolCallCard key={toolCall.id} toolCall={toolCall} />
-            ))
+            <>
+              {console.log(`\n🎨 WorkflowVisualizationSidebar rendering ${toolCalls.length} tool calls`)}
+              {toolCalls.map((toolCall, index) => {
+                console.log(`  - Rendering banner ${index + 1}/${toolCalls.length}: "${toolCall.title}" (${toolCall.status})`);
+                return <ToolCallCard key={toolCall.id} toolCall={toolCall} />;
+              })}
+            </>
           )}
         </div>
       </ScrollArea>
