@@ -6,8 +6,8 @@ It asks follow-up questions when information is missing and confirms before logg
 from langgraph.graph import StateGraph, END
 from langchain_core.messages import HumanMessage
 
-from workflows.progress_tracking.state import ProgressLoggingState
-from workflows.progress_tracking.nodes import (
+from .state import ProgressLoggingState
+from .nodes import (
     parse_user_input_node,
     identify_assignment_node,
     check_completeness_node,

@@ -7,15 +7,15 @@ from database import get_db_session
 from database.models import Assignment, UserAssignment
 from shared.config import Configuration
 from shared.utils import get_text_llm
-from workflows.progress_tracking.state import ProgressLoggingState
-from workflows.progress_tracking.prompts import (
+from .state import ProgressLoggingState
+from .prompts import (
     PARSE_USER_INPUT_PROMPT,
     IDENTIFY_ASSIGNMENT_PROMPT,
     ASK_FOR_MISSING_INFO_PROMPT,
     CONFIRM_AND_LOG_PROMPT,
     GENERATE_SUCCESS_MESSAGE_PROMPT,
 )
-from workflows.progress_tracking.tools import log_study_progress, get_assignment_progress
+from .tools import log_study_progress, get_assignment_progress
 
 
 def parse_user_input_node(state: ProgressLoggingState) -> dict:

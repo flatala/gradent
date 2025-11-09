@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
+import { Card, CardHeader, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
   Calendar,
@@ -8,6 +8,9 @@ import {
   Brain,
   TrendingUp,
   CheckCircle2,
+  Loader2,
+  RefreshCw,
+  Sparkles,
 } from "lucide-react";
 import {
   SidebarProvider,
@@ -21,6 +24,9 @@ import ResultsView from "./ResultsView";
 import ScheduleAdjustment from "./ScheduleAdjustment";
 import ConsentModal from "./ConsentModal";
 import { CalendarSync } from "./CalendarSync";
+import { api } from "@/lib/api";
+import type { SuggestionRecord } from "@/lib/types";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 const mockAssignments: Array<{
   id: string;
@@ -77,6 +83,9 @@ const Dashboard = () => {
     mockAssignments[0],
   );
   const [examResults, setExamResults] = useState<any>(null);
+  const [suggestions, setSuggestions] = useState<SuggestionRecord[]>([]);
+  const [suggestionsLoading, setSuggestionsLoading] = useState(false);
+  const [suggestionsError, setSuggestionsError] = useState<string | null>(null);
 
   const handleConnect = () => {
     setShowConsent(true);
@@ -109,6 +118,52 @@ const Dashboard = () => {
   const handleBackToDashboard = () => {
     setCurrentView("dashboard");
   };
+
+  const fetchSuggestions = useCallback(async () => {
+    setSuggestionsLoading(true);
+    setSuggestionsError(null);
+    try {
+      const response = await api.listSuggestions();
+      setSuggestions(response.suggestions);
+    } catch (err) {
+      setSuggestionsError((err as Error).message);
+    } finally {
+      setSuggestionsLoading(false);
+    }
+  }, []);
+
+  const handleGenerateSuggestions = useCallback(async () => {
+    setSuggestionsLoading(true);
+    setSuggestionsError(null);
+    try {
+      const response = await api.generateSuggestions();
+      setSuggestions(response.suggestions);
+    } catch (err) {
+      setSuggestionsError((err as Error).message);
+    } finally {
+      setSuggestionsLoading(false);
+    }
+  }, []);
+
+  const handleResetSuggestions = useCallback(async () => {
+    setSuggestionsLoading(true);
+    setSuggestionsError(null);
+    try {
+      await api.resetSuggestions({});
+      const response = await api.listSuggestions();
+      setSuggestions(response.suggestions);
+    } catch (err) {
+      setSuggestionsError((err as Error).message);
+    } finally {
+      setSuggestionsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (isConnected && syncStatus === "synced") {
+      fetchSuggestions();
+    }
+  }, [isConnected, syncStatus, fetchSuggestions]);
 
   const renderMainContent = () => {
     if (currentView === "exam") {
@@ -191,6 +246,96 @@ const Dashboard = () => {
                 />
               ))}
             </div>
+
+            <Card className="bg-gradient-card border-border/50">
+              <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <h3 className="text-xl font-semibold">Latest Suggestions</h3>
+                  <p className="text-sm text-muted-foreground">
+                    Personalized study recommendations from the agent.
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={fetchSuggestions}
+                    disabled={suggestionsLoading}
+                  >
+                    <RefreshCw className="mr-2 h-4 w-4" />
+                    Refresh
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleResetSuggestions}
+                    disabled={suggestionsLoading}
+                  >
+                    Reset
+                  </Button>
+                  <Button
+                    size="sm"
+                    onClick={handleGenerateSuggestions}
+                    disabled={suggestionsLoading}
+                  >
+                    <Sparkles className="mr-2 h-4 w-4" />
+                    Generate
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {suggestionsError && (
+                  <Alert variant="destructive">
+                    <AlertDescription>{suggestionsError}</AlertDescription>
+                  </Alert>
+                )}
+                {suggestionsLoading ? (
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Fetching suggestions...
+                  </div>
+                ) : suggestions.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">
+                    No suggestions yet. Generate a snapshot to see personalized
+                    recommendations.
+                  </p>
+                ) : (
+                  <div className="space-y-3">
+                    {suggestions.map((suggestion) => (
+                      <div
+                        key={suggestion.id}
+                        className="rounded-lg border border-border/50 bg-background/60 p-4"
+                      >
+                        <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                          <div>
+                            <h4 className="font-semibold">{suggestion.title}</h4>
+                            <p className="text-sm text-muted-foreground">
+                              {suggestion.message}
+                            </p>
+                          </div>
+                          <Badge variant="secondary">
+                            {suggestion.priority?.toUpperCase() ?? "INFO"}
+                          </Badge>
+                        </div>
+                        <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                          {suggestion.category && (
+                            <span>Category: {suggestion.category}</span>
+                          )}
+                          {suggestion.status && (
+                            <span>Status: {suggestion.status}</span>
+                          )}
+                          {suggestion.suggested_time_text && (
+                            <span>
+                              Suggested time: {suggestion.suggested_time_text}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
           </div>
         )}
       </div>
