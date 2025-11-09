@@ -85,19 +85,33 @@ async def initialize_scheduler(
     ]
 
     # Provide timezone and current date context for interpreting relative dates
-    from datetime import datetime
+    from datetime import datetime, timedelta
     import pytz
-    
+
     default_tz = os.getenv("GOOGLE_CALENDAR_TIME_ZONE") or os.getenv("TIME_ZONE")
     if default_tz:
         try:
             tz = pytz.timezone(default_tz)
             current_datetime = datetime.now(tz)
+
+            # Calculate the next 7 days with their day names and dates
+            week_info = []
+            for i in range(1, 8):
+                future_date = current_datetime + timedelta(days=i)
+                week_info.append(f"{future_date.strftime('%A')} = {future_date.strftime('%Y-%m-%d')}")
+
+            week_reference = ", ".join(week_info)
+
             messages.append(
                 SystemMessage(
                     content=(
-                        f"Current date and time: {current_datetime.strftime('%Y-%m-%d %H:%M')} ({default_tz}). "
-                        f"Use this as reference when interpreting relative dates like 'tomorrow' or 'next Monday'."
+                        f"Current date and time: {current_datetime.strftime('%A, %Y-%m-%d %H:%M')} ({default_tz}). "
+                        f"Today is {current_datetime.strftime('%A')}. "
+                        f"\n\nNext 7 days reference:\n{week_reference}\n\n"
+                        f"IMPORTANT: When the user says 'Monday', use the Monday date from above. "
+                        f"When the user says 'Wednesday', use the Wednesday date from above. "
+                        f"When the user says 'Friday', use the Friday date from above. "
+                        f"Use these exact dates - do NOT calculate dates yourself."
                     )
                 )
             )
