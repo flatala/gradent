@@ -3,10 +3,8 @@ import sys
 from datetime import datetime, timedelta
 from pathlib import Path
 
-# Ensure project root is importable when running directly
-ROOT_DIR = Path(__file__).parent
-if str(ROOT_DIR) not in sys.path:
-    sys.path.insert(0, str(ROOT_DIR))
+# Add parent directory to path so we can import from root modules
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from database.connection import get_db_session, init_db
 from database.models import Suggestion, SuggestionStatus
