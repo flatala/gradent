@@ -57,6 +57,22 @@ def get_db_session() -> Generator[Session, None, None]:
         session.close()
 
 
+def get_db() -> Generator[Session, None, None]:
+    """FastAPI dependency for database sessions.
+    
+    Usage:
+        @app.get("/items")
+        def read_items(db: Session = Depends(get_db)):
+            items = db.query(Item).all()
+            return items
+    """
+    session = SessionLocal()
+    try:
+        yield session
+    finally:
+        session.close()
+
+
 def get_db_path() -> Path:
     """Get the path to the database file."""
     return DB_PATH

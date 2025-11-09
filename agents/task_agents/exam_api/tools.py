@@ -172,9 +172,12 @@ async def generate_questions_from_api(
                                     generated_content.append(content)
                         except json.JSONDecodeError:
                             # Not JSON, treat as plain text
-                            if "error" in data.lower():
+                            # Only treat it as an error if it explicitly starts with "Error:" or "error:"
+                            if data.strip().lower().startswith("error:"):
                                 return f"Error during generation: {data}"
-                            generated_content.append(data)
+                            # Otherwise, treat as markdown content
+                            if data.strip():
+                                generated_content.append(data)
 
         if not generated_content:
             return "Error: No content generated"

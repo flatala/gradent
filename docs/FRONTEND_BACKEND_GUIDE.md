@@ -236,7 +236,7 @@ uvicorn.run("app.main:app", port=8000)  # Change 8000
 ### Change AI Model
 Edit form default in `frontend/src/components/ExamForm.jsx` line 7:
 ```javascript
-const [modelName, setModelName] = useState('qwen/qwen3-30b-a3b:free')
+const [modelName, setModelName] = useState('meta-llama/llama-4-scout:free')
 ```
 
 ---

@@ -168,18 +168,43 @@ export interface ExamResponsePayload {
   uploaded_files?: string[] | null;
 }
 
+export interface ExamAssessmentRequestPayload {
+  assignment_title: string;
+  course_name: string;
+  questions: Array<{
+    number: string;
+    text: string;
+    options: string[];
+  }>;
+  user_answers: Record<string, string>;
+  correct_answers: Record<string, string>;
+}
+
+export interface ExamAssessmentResponsePayload {
+  success: boolean;
+  score?: number;
+  total_questions?: number;
+  percentage?: number;
+  study_recommendation?: string;
+  detailed_feedback?: string;
+  error?: string;
+}
+
 export interface SimpleStatusResponse {
   status: string;
   message: string;
 }
 
+// Autonomous Mode types
+export type ExecutionFrequency = "15min" | "30min" | "1hour" | "3hours" | "6hours" | "12hours" | "24hours";
 
-  error?: string | null;
-  uploaded_files?: string[] | null;
+export interface AutonomousConfigPayload {
+  enabled: boolean;
+  frequency: ExecutionFrequency;
+  ntfy_topic?: string;
 }
 
-export interface SimpleStatusResponse {
-  status: string;
-  message: string;
+export interface AutonomousConfigResponse extends AutonomousConfigPayload {
+  last_execution?: string;
+  next_execution?: string;
 }
-

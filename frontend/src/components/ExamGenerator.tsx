@@ -1,4 +1,4 @@
-import { useState, type ChangeEvent, type DragEvent, type FormEvent } from "react";
+import { useState, useEffect, type ChangeEvent, type DragEvent, type FormEvent } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -14,6 +14,7 @@ import { Progress } from "@/components/ui/progress";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Separator } from "@/components/ui/separator";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import {
   Upload,
   X,
@@ -22,6 +23,7 @@ import {
   Download,
   Copy,
   CheckCircle,
+  ArrowLeft,
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import rehypeKatex from "rehype-katex";
@@ -29,10 +31,23 @@ import remarkMath from "remark-math";
 import "katex/dist/katex.min.css";
 import { api } from "@/lib/api";
 
-const ExamGenerator = () => {
+interface ExamGeneratorProps {
+  assignmentContext?: {
+    title: string;
+    course: string;
+    topics: string[];
+    description?: string;
+  };
+  onBack?: () => void;
+}
+
+type ExamType = "multiple-choice" | "open-questions" | "custom";
+
+const ExamGenerator = ({ assignmentContext, onBack }: ExamGeneratorProps) => {
   const [files, setFiles] = useState<File[]>([]);
   const [questionHeader, setQuestionHeader] = useState("AI Generated Exam");
-  const [questionDescription, setQuestionDescription] = useState("");
+  const [examType, setExamType] = useState<ExamType>("multiple-choice");
+  const [customDescription, setCustomDescription] = useState("");
   const [apiKey, setApiKey] = useState("");
   const [modelName, setModelName] = useState("");
   const [dragOver, setDragOver] = useState(false);
@@ -42,6 +57,29 @@ const ExamGenerator = () => {
   const [results, setResults] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [processedFiles, setProcessedFiles] = useState<string[]>([]);
+
+  // Generate question description based on exam type and assignment context
+  const getQuestionDescription = (): string => {
+    let baseDescription = "";
+    
+    if (assignmentContext) {
+      const topicsText = assignmentContext.topics.length > 0
+        ? ` Focus on: ${assignmentContext.topics.join(", ")}.`
+        : "";
+      baseDescription = `Generate exam questions for ${assignmentContext.course} - ${assignmentContext.title}.${topicsText}`;
+    }
+
+    switch (examType) {
+      case "multiple-choice":
+        return `${baseDescription} Create 10 multiple-choice questions with 4 options each. Mark the correct answer clearly.`;
+      case "open-questions":
+        return `${baseDescription} Create 5 open-ended questions that require detailed written responses.`;
+      case "custom":
+        return customDescription || baseDescription;
+      default:
+        return baseDescription;
+    }
+  };
 
   const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
     const selectedFiles = Array.from(e.target.files || []);
@@ -93,8 +131,9 @@ const ExamGenerator = () => {
       return;
     }
 
-    if (!questionDescription) {
-      alert("Please fill in the question requirements");
+    const finalDescription = getQuestionDescription();
+    if (!finalDescription.trim()) {
+      alert("Please select an exam type or provide custom requirements");
       return;
     }
 
@@ -119,7 +158,7 @@ const ExamGenerator = () => {
       const data = await api.generateExam({
         files,
         questionHeader,
-        questionDescription,
+        questionDescription: finalDescription,
         apiKey,
         modelName,
       });
@@ -149,7 +188,8 @@ const ExamGenerator = () => {
     setError(null);
     setFiles([]);
     setProcessedFiles([]);
-    setQuestionDescription("");
+    setExamType("multiple-choice");
+    setCustomDescription("");
     setQuestionHeader("AI Generated Exam");
     setApiKey("");
     setModelName("");
@@ -180,6 +220,16 @@ const ExamGenerator = () => {
   if (results) {
     return (
       <div className="space-y-6 animate-fade-in">
+        {onBack && (
+          <Button
+            variant="ghost"
+            onClick={onBack}
+            className="mb-4"
+          >
+            <ArrowLeft className="mr-2 h-4 w-4" />
+            Back to Dashboard
+          </Button>
+        )}
         <Card className="shadow-lg bg-gradient-card">
           <CardHeader>
             <div className="flex items-center justify-between">
@@ -192,9 +242,16 @@ const ExamGenerator = () => {
                   Your AI-generated exam is ready
                 </CardDescription>
               </div>
-              <Button onClick={handleReset} variant="outline">
-                Generate Another
-              </Button>
+              <div className="flex gap-2">
+                <Button onClick={handleReset} variant="outline">
+                  Generate Another
+                </Button>
+                {onBack && (
+                  <Button onClick={onBack} variant="secondary">
+                    Exit Exam
+                  </Button>
+                )}
+              </div>
             </div>
           </CardHeader>
           <CardContent>
@@ -267,6 +324,16 @@ const ExamGenerator = () => {
 
   return (
     <div className="space-y-6">
+      {onBack && (
+        <Button
+          variant="ghost"
+          onClick={onBack}
+          className="mb-4"
+        >
+          <ArrowLeft className="mr-2 h-4 w-4" />
+          Back to Dashboard
+        </Button>
+      )}
       {!loading && (
         <Card className="shadow-lg hover:shadow-glow transition-all duration-300 bg-gradient-card border-border/50 animate-fade-in">
           <CardHeader className="pb-6">
@@ -357,28 +424,76 @@ const ExamGenerator = () => {
                   id="questionHeader"
                   placeholder="e.g., Midterm Exam - Linear Algebra"
                   value={questionHeader}
-                  onChange={(e) => setQuestionHeader(e.target.value)}
+                  onChange={(e: ChangeEvent<HTMLInputElement>) => setQuestionHeader(e.target.value)}
                   required
                   className="text-base"
                 />
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="questionDescription">
-                  Question Requirements{" "}
-                  <span className="text-destructive">*</span>
+              <div className="space-y-3">
+                <Label>
+                  Exam Type <span className="text-destructive">*</span>
                 </Label>
-                <Textarea
-                  id="questionDescription"
-                  placeholder="e.g., Generate 10 multiple choice questions with mixed difficulty levels"
-                  value={questionDescription}
-                  onChange={(e) => setQuestionDescription(e.target.value)}
-                  required
-                  className="min-h-[100px] text-base"
-                />
+                <div className="space-y-3">
+                  <div className="flex items-center space-x-2">
+                    <input
+                      type="radio"
+                      id="multiple-choice"
+                      name="examType"
+                      value="multiple-choice"
+                      checked={examType === "multiple-choice"}
+                      onChange={(e) => setExamType(e.target.value as ExamType)}
+                      className="w-4 h-4 text-primary"
+                    />
+                    <Label htmlFor="multiple-choice" className="font-normal cursor-pointer">
+                      10 Multiple Choice Questions
+                    </Label>
+                  </div>
+                  
+                  <div className="flex items-center space-x-2">
+                    <input
+                      type="radio"
+                      id="open-questions"
+                      name="examType"
+                      value="open-questions"
+                      checked={examType === "open-questions"}
+                      onChange={(e) => setExamType(e.target.value as ExamType)}
+                      className="w-4 h-4 text-primary"
+                    />
+                    <Label htmlFor="open-questions" className="font-normal cursor-pointer">
+                      5 Open-Ended Questions
+                    </Label>
+                  </div>
+                  
+                  <div className="flex items-center space-x-2">
+                    <input
+                      type="radio"
+                      id="custom"
+                      name="examType"
+                      value="custom"
+                      checked={examType === "custom"}
+                      onChange={(e) => setExamType(e.target.value as ExamType)}
+                      className="w-4 h-4 text-primary"
+                    />
+                    <Label htmlFor="custom" className="font-normal cursor-pointer">
+                      Custom
+                    </Label>
+                  </div>
+                  
+                  {examType === "custom" && (
+                    <Textarea
+                      id="customDescription"
+                      placeholder="e.g., Generate 15 questions: 10 MCQ and 5 short answer, covering advanced topics"
+                      value={customDescription}
+                      onChange={(e: ChangeEvent<HTMLTextAreaElement>) => setCustomDescription(e.target.value)}
+                      className="min-h-[100px] text-base mt-2"
+                    />
+                  )}
+                </div>
                 <p className="text-xs text-muted-foreground">
-                  Specify the number of questions, types (MCQ, short answer,
-                  etc.), and difficulty level
+                  {examType === "custom" 
+                    ? "Specify your custom exam requirements"
+                    : "The questions will be based on the uploaded materials and assignment topics"}
                 </p>
               </div>
 
@@ -391,7 +506,7 @@ const ExamGenerator = () => {
                     type="password"
                     placeholder="Overrides server API key"
                     value={apiKey}
-                    onChange={(e) => setApiKey(e.target.value)}
+                    onChange={(e: ChangeEvent<HTMLInputElement>) => setApiKey(e.target.value)}
                   />
                   <p className="text-xs text-muted-foreground">
                     Leave blank to use the backend configuration.
@@ -401,9 +516,9 @@ const ExamGenerator = () => {
                   <Label htmlFor="modelName">Model Name (optional)</Label>
                   <Input
                     id="modelName"
-                    placeholder="e.g., qwen/qwen3-30b-a3b:free"
+                    placeholder="e.g., meta-llama/llama-4-scout:free"
                     value={modelName}
-                    onChange={(e) => setModelName(e.target.value)}
+                    onChange={(e: ChangeEvent<HTMLInputElement>) => setModelName(e.target.value)}
                   />
                   <p className="text-xs text-muted-foreground">
                     Defaults to the server-configured model.
