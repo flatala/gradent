@@ -1,10 +1,3 @@
-"""Prompts for autonomous executor workflows.
-
-The ExecutorAgent uses a system prompt to define its role, then receives
-task-specific instruction prompts for each autonomous operation.
-"""
-
-# System prompt - defines the executor's overall role and capabilities
 EXECUTOR_SYSTEM_PROMPT = """You are an autonomous task executor designed to complete end-to-end workflows without user interaction.
 
 Your capabilities:
@@ -30,56 +23,28 @@ Guidelines:
 """
 
 
-# Task-specific instruction prompts below:
+CONTEXT_UPDATE_AND_ASSESS_TASK_PROMPT = """Task: Update context from LMS, assess new assignments, and schedule study sessions
 
-SCHEDULE_MEETING_TASK_PROMPT = """Task: Autonomously schedule a meeting on Google Calendar
-
-You have been given the following meeting details:
-- Meeting name: {meeting_name}
-- Duration: {duration_minutes} minutes
-- Preferred time: {preferred_time}
-- Topic: {topic}
-- Attendees: {attendees}
-- Location: {location}
+You have been given a user_id: {user_id}
+Auto-scheduling is {'ENABLED' if '{auto_schedule}' == 'True' else 'DISABLED'}
 
 Your objective:
-1. Use the scheduler workflow to create this calendar event
-2. Ensure the event is successfully created
-3. If the preferred time is not available, find the next best time
-4. Return structured results with event details
+1. Run context update to sync courses and assignments from Brightspace LMS
+2. Detect which assignments are new (no existing assessment)
+3. For each new assignment:
+   a. Run assignment assessment to estimate effort, difficulty, and milestones
+   b. If auto-scheduling is enabled: schedule study sessions based on assessment
+4. Return structured summary of all actions taken
 
-DO NOT ask for confirmation or user input. Execute the task autonomously and return results.
+Available tools:
+- run_context_update: Syncs data from LMS to database and vector DB
+- assess_assignment: Analyzes an assignment and generates effort estimates
+- schedule_study_session: Creates a calendar event for studying
 
-Available workflows:
-- scheduler_workflow: For creating calendar events
+Execute this task autonomously. Make intelligent decisions about:
+- How many study sessions to create based on effort estimates
+- When to schedule sessions (spread evenly before due date)
+- Session duration (typically 2 hours max per session)
 
-Execute this task now and return the event details."""
-
-
-# Future task prompts:
-
-# ASSIGNMENT_CHECK_TASK_PROMPT = """Task: Check for new assignments and auto-schedule study sessions
-#
-# Your objective:
-# 1. Use ingestion workflow to fetch new assignments from Brightspace/Canvas
-# 2. For each new assignment:
-#    a. Save to database
-#    b. Send notification via notifier workflow
-#    c. Calculate optimal study time based on due date
-#    d. Schedule study sessions using scheduler workflow
-# 3. Return summary of assignments processed and events created
-#
-# Execute autonomously - no user interaction required.
-# """
-
-# DAILY_PLANNING_TASK_PROMPT = """Task: Daily planning routine
-#
-# Your objective:
-# 1. Review today's calendar using scheduler workflow
-# 2. Check upcoming assignment deadlines
-# 3. Identify scheduling conflicts or gaps
-# 4. Suggest optimizations or adjustments
-# 5. Auto-schedule any missing study sessions
-#
-# Execute autonomously and return optimization suggestions.
-# """
+DO NOT ask for user input. Complete the entire workflow and return results.
+"""

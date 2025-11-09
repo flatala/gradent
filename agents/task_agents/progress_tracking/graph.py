@@ -6,8 +6,8 @@ It asks follow-up questions when information is missing and confirms before logg
 from langgraph.graph import StateGraph, END
 from langchain_core.messages import HumanMessage
 
-from .state import ProgressLoggingState
-from .nodes import (
+from agents.task_agents.progress_tracking.state import ProgressLoggingState
+from agents.task_agents.progress_tracking.nodes import (
     parse_user_input_node,
     identify_assignment_node,
     check_completeness_node,
@@ -130,7 +130,7 @@ def create_progress_tracking_graph():
 progress_tracking_graph = create_progress_tracking_graph()
 
 
-def run_progress_tracking(user_id: int, user_message: str, conversation_state: dict = None):
+def run_progress_tracking(user_id: int = 1, user_message: str = "", conversation_state: dict = None):
     """Run the progress tracking workflow with a user message.
     
     Args:
@@ -166,7 +166,9 @@ def run_progress_tracking(user_id: int, user_message: str, conversation_state: d
             "logged_data": None,
         }
     else:
+        # Ensure user_id is present in continued conversation
         state = conversation_state.copy()
+        state.setdefault("user_id", user_id)
         state["messages"] = state.get("messages", []) + [HumanMessage(content=user_message)]
     
     # Run the graph
