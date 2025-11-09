@@ -95,8 +95,15 @@ export function ChatSidebar() {
       
       if (response.tool_calls && Array.isArray(response.tool_calls) && response.tool_calls.length > 0) {
         console.log(`Processing ${response.tool_calls.length} tool calls from backend`);
-        
-        response.tool_calls.forEach((toolCall, index) => {
+
+        // Filter to only show completed or failed tools (ignore "started" status to avoid loading banners)
+        const completedTools = response.tool_calls.filter(
+          tc => tc.status === "completed" || tc.status === "failed"
+        );
+
+        console.log(`Filtered to ${completedTools.length} completed/failed tools`);
+
+        completedTools.forEach((toolCall, index) => {
           console.log(`\n=== Tool Call ${index + 1} ===`);
           console.log("Full tool call object:", toolCall);
           console.log("Tool name:", toolCall.tool_name);
@@ -104,33 +111,24 @@ export function ChatSidebar() {
           console.log("Status:", toolCall.status);
           console.log("Result:", toolCall.result);
           console.log("Result type:", typeof toolCall.result);
-          
+
+          // Create tool call banner directly with final status
           const toolCallId = addToolCall({
             type: toolCall.tool_type,
-            status: toolCall.status === "started" ? "in_progress" : toolCall.status,
+            status: toolCall.status,
             title: toolCall.tool_name,
-            description: toolCall.status === "started" ? "Processing..." : undefined,
-            result: toolCall.result, // Pass result immediately
+            description: undefined,
+            result: toolCall.result,
           });
-          
-          // Show toast notification when tool starts
-          if (toolCall.status === "started") {
-            toast.loading(toolCall.tool_name, {
-              description: "Agent is working on this task...",
-              id: toolCallId,
-            });
-          }
-          
-          // If tool is completed or failed, update immediately
+
+          // Show success or error toast
           if (toolCall.status === "completed" && toolCall.result) {
             console.log("Tool result:", toolCall.result);
-            completeToolCall(toolCallId, toolCall.result);
             toast.success(toolCall.tool_name, {
               description: "Task completed successfully!",
               id: toolCallId,
             });
           } else if (toolCall.status === "failed" && toolCall.error) {
-            failToolCall(toolCallId, toolCall.error);
             toast.error(toolCall.tool_name, {
               description: toolCall.error,
               id: toolCallId,

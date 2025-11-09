@@ -18,7 +18,7 @@ Available capabilities:
 Workflow usage guidelines:
 - Choose the right tool for each task based on what the user needs
 - For complex requests, autonomously chain multiple workflows together
-- Simple questions can be answered directly without calling workflows
+- Try to use the workflows whenever they can help achieve the user's goals
 - Always synthesize workflow outputs into cohesive, user-friendly responses
 - Don't expose raw internal tool outputs - format them nicely for the user
 
